@@ -7,6 +7,7 @@ TSDB_EXPERT_REQUIREMENTS.md
 diagrams/
 demo/
 scripts/
+grafana/
 
 # Original nested directory (kept locally)
 lakets/

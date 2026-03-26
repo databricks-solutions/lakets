@@ -19,7 +19,7 @@ LakeTS brings TimescaleDB-equivalent time series capabilities to Databricks Lake
 | **Alert Rules** | SQL-native `alert_check()` + `alert_deadman()` on hot data |
 | **Bulk Ingest** | `ingest_batch()` for JSONB arrays + `ingest_prometheus()` |
 | **Downsampling Registry** | Multi-resolution pipeline metadata + `query_auto_resolution()` |
-| **Monitoring** | Prometheus-compatible metrics, Grafana dashboards, Telegraf integration |
+| **Monitoring** | Prometheus-compatible metrics endpoint |
 | **Benchmarks** | TSBS-adapted suite with TimescaleDB comparison |
 
 ## Quick Start
@@ -71,7 +71,6 @@ LakeTS Toolkit (PL/pgSQL functions)
 sql/               -- SQL functions (install on Lakebase)
 tests/             -- SQL test suites
 databricks/        -- Workflow jobs + Asset Bundle
-grafana/           -- Dashboard templates + Telegraf config
 benchmarks/        -- TSBS-adapted benchmark suite
 docs/              -- Documentation
 ```
