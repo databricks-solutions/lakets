@@ -47,6 +47,9 @@
 -- Step 13: Shadow sync for Lakehouse Sync
 \ir 07_shadow_sync.sql
 
+-- Step 14: RollUp Optimization — Modules 23–28
+\ir 13_rollup_optimization.sql
+
 -- Verify installation
 DO $$
 DECLARE v_func_count INT; v_table_count INT;
