@@ -96,6 +96,3 @@ docs/              -- Documentation
 - PostgreSQL 16+ (Lakebase default)
 - For workflows: Databricks cluster with `psycopg2` + SDK
 
-## License
-
-Open source. See LICENSE file.
