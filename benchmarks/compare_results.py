@@ -17,7 +17,7 @@ TIMESCALEDB_BASELINES = {
     "Simple Query (last per device)": {"value": 5.0, "unit": "ms (median)", "source": "100 devices"},
     "Aggregation (hourly rollup)": {"value": 50.0, "unit": "ms", "source": "1M rows"},
     "Gap-Fill (hourly LOCF)": {"value": 10.0, "unit": "ms", "source": "7-day range"},
-    "Continuous Aggregate": {"value": 200.0, "unit": "ms (refresh)", "source": "1M rows"},
+    "RollUp": {"value": 200.0, "unit": "ms (refresh)", "source": "1M rows"},
 }
 
 

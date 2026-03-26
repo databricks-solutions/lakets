@@ -3,9 +3,13 @@ PRD_*.md
 IMPLEMENTATION_PLAN.md
 TSDB_EXPERT_REQUIREMENTS.md
 
-# Diagrams and demo (internal only)
+# Diagrams, demo, and scripts (internal only)
 diagrams/
 demo/
+scripts/
+
+# Original nested directory (kept locally)
+lakets/
 
 # macOS
 .DS_Store

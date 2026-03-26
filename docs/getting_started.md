@@ -1,6 +1,6 @@
 # Getting Started with LakeTS
 
-LakeTS is an open-source time series toolkit for Databricks Lakebase. It adds TimescaleDB-like capabilities (automatic partitioning, time series functions, continuous aggregates, compression, retention) to Lakebase's native PostgreSQL.
+LakeTS is an open-source time series toolkit for Databricks Lakebase. It adds TimescaleDB-like capabilities (automatic partitioning, time series functions, incremental rollups, compression, retention) to Lakebase's native PostgreSQL.
 
 ## Prerequisites
 

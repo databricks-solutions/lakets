@@ -68,13 +68,12 @@ LakeTS Toolkit (PL/pgSQL functions)
 ## Project Structure
 
 ```
-lakets/
-  sql/               -- SQL functions (install on Lakebase)
-  tests/             -- SQL test suites
-  databricks/        -- Workflow jobs + Asset Bundle
-  grafana/           -- Dashboard templates + Telegraf config
-  benchmarks/        -- TSBS-adapted benchmark suite
-  docs/              -- Documentation
+sql/               -- SQL functions (install on Lakebase)
+tests/             -- SQL test suites
+databricks/        -- Workflow jobs + Asset Bundle
+grafana/           -- Dashboard templates + Telegraf config
+benchmarks/        -- TSBS-adapted benchmark suite
+docs/              -- Documentation
 ```
 
 ## Documentation

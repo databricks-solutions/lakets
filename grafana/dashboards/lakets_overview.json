@@ -62,11 +62,11 @@
         }]
       },
       {
-        "title": "Continuous Aggregate Lag (seconds)",
+        "title": "RollUp Watermark Lag (seconds)",
         "type": "bargauge",
         "gridPos": { "h": 6, "w": 12, "x": 0, "y": 12 },
         "targets": [{
-          "rawSql": "SELECT labels->>'aggregate' as name, metric_value as lag_seconds FROM lakets.lakets_metrics() WHERE metric_name = 'lakets_cagg_lag_seconds'",
+          "rawSql": "SELECT labels->>'rollup' as name, metric_value as lag_seconds FROM lakets.lakets_metrics() WHERE metric_name = 'lakets_rollup_watermark_lag_seconds'",
           "format": "table"
         }]
       },
