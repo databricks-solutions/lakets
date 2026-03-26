@@ -1,0 +1,461 @@
+-- =============================================================================
+-- LakeTS RollUp Engine
+-- Incrementally-maintained time-bucketed aggregations over ChronoTables.
+-- Backed by regular tables (not materialized views) for surgical per-bucket
+-- refresh. Supports hot-tier (Lakebase) and cold-tier (Delta Lake) data.
+-- =============================================================================
+
+-- ---------------------------------------------------------------------------
+-- create_rollup: Creates a RollUp table with initial data load.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets.create_rollup(
+    p_name            TEXT,
+    p_query           TEXT,
+    p_bucket_interval INTERVAL DEFAULT '1 hour',
+    p_source_table    TEXT     DEFAULT NULL,
+    p_source_schema   TEXT     DEFAULT 'public',
+    p_refresh_mode    TEXT     DEFAULT 'incremental'
+)
+RETURNS INT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_rollup_id INT;
+    v_chronotable_id INT;
+    v_rollup_table TEXT;
+    v_rt_view TEXT;
+    v_idx_cols TEXT := '';
+    v_col RECORD;
+    v_watermark TIMESTAMPTZ;
+BEGIN
+    IF EXISTS (SELECT 1 FROM lakets._rollup_registry WHERE name = p_name) THEN
+        RAISE EXCEPTION 'RollUp % already exists', p_name;
+    END IF;
+
+    IF p_source_table IS NOT NULL THEN
+        SELECT id INTO v_chronotable_id
+        FROM lakets._chronotable_registry
+        WHERE schema_name = p_source_schema AND table_name = p_source_table;
+
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Source table %.% is not a registered ChronoTable',
+                p_source_schema, p_source_table;
+        END IF;
+    END IF;
+
+    v_rollup_table := '_rollup_' || p_name;
+    v_rt_view := '_rollup_rt_' || p_name;
+
+    -- Create table with initial data load
+    EXECUTE format('CREATE TABLE public.%I AS %s', v_rollup_table, p_query);
+
+    -- Build unique index on ALL columns (supports UPSERT and dedup)
+    FOR v_col IN
+        SELECT a.attname FROM pg_attribute a
+        JOIN pg_class c ON a.attrelid = c.oid
+        JOIN pg_namespace n ON c.relnamespace = n.oid
+        WHERE n.nspname = 'public' AND c.relname = v_rollup_table
+          AND a.attnum > 0 AND NOT a.attisdropped
+        ORDER BY a.attnum
+    LOOP
+        IF v_idx_cols != '' THEN v_idx_cols := v_idx_cols || ', '; END IF;
+        v_idx_cols := v_idx_cols || format('%I', v_col.attname);
+    END LOOP;
+
+    IF v_idx_cols != '' THEN
+        EXECUTE format('CREATE UNIQUE INDEX %I ON public.%I (%s)',
+            'idx_' || v_rollup_table || '_unique', v_rollup_table, v_idx_cols);
+    END IF;
+
+    -- Read initial watermark
+    EXECUTE format('SELECT max(bucket) FROM public.%I', v_rollup_table)
+        INTO v_watermark;
+
+    -- Register
+    INSERT INTO lakets._rollup_registry
+        (name, source_chronotable_id, rollup_table, realtime_view,
+         bucket_interval, refresh_mode, query_text, watermark, last_refreshed_at)
+    VALUES (p_name, v_chronotable_id, v_rollup_table, v_rt_view,
+            p_bucket_interval, p_refresh_mode, p_query, v_watermark, now())
+    RETURNING id INTO v_rollup_id;
+
+    RETURN v_rollup_id;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- refresh_rollup: Incremental or full refresh of a RollUp.
+-- Returns TRUE if refreshed, FALSE if skipped (refresh_lag).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets.refresh_rollup(p_name TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_rec RECORD;
+    v_dirty_from TIMESTAMPTZ;
+    v_new_watermark TIMESTAMPTZ;
+    v_inv RECORD;
+BEGIN
+    SELECT r.*, cr.time_column
+    INTO v_rec
+    FROM lakets._rollup_registry r
+    LEFT JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
+    WHERE r.name = p_name;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'RollUp % not found', p_name;
+    END IF;
+
+    -- Honor refresh_lag: skip if refreshed too recently
+    IF v_rec.last_refreshed_at IS NOT NULL
+       AND v_rec.refresh_lag IS NOT NULL
+       AND (v_rec.last_refreshed_at + v_rec.refresh_lag) > now() THEN
+        RETURN FALSE;
+    END IF;
+
+    IF v_rec.refresh_mode = 'full' THEN
+        -- Full mode: TRUNCATE + re-INSERT
+        EXECUTE format('TRUNCATE public.%I', v_rec.rollup_table);
+        EXECUTE format('INSERT INTO public.%I %s', v_rec.rollup_table, v_rec.query_text);
+    ELSE
+        -- Incremental mode: only re-compute dirty window
+        v_dirty_from := COALESCE(v_rec.watermark, '-infinity'::timestamptz)
+                        - v_rec.bucket_interval;
+
+        -- Phase 1: Watermark-based refresh (current window)
+        EXECUTE format('DELETE FROM public.%I WHERE bucket >= %L',
+            v_rec.rollup_table, v_dirty_from);
+
+        EXECUTE format(
+            'INSERT INTO public.%I SELECT * FROM (%s) _q WHERE _q.bucket >= %L',
+            v_rec.rollup_table, v_rec.query_text, v_dirty_from
+        );
+
+        -- Phase 2: Process hot-tier invalidation log entries (historical dirty buckets)
+        FOR v_inv IN
+            SELECT DISTINCT bucket_start
+            FROM lakets._rollup_invalidation_log
+            WHERE rollup_id = v_rec.id
+              AND tier = 'hot'
+              AND bucket_start < v_dirty_from
+        LOOP
+            EXECUTE format('DELETE FROM public.%I WHERE bucket = %L',
+                v_rec.rollup_table, v_inv.bucket_start);
+
+            EXECUTE format(
+                'INSERT INTO public.%I SELECT * FROM (%s) _q WHERE _q.bucket = %L',
+                v_rec.rollup_table, v_rec.query_text, v_inv.bucket_start
+            );
+        END LOOP;
+
+        -- Clear processed hot-tier entries
+        DELETE FROM lakets._rollup_invalidation_log
+        WHERE rollup_id = v_rec.id AND tier = 'hot';
+    END IF;
+
+    -- Advance watermark
+    EXECUTE format('SELECT max(bucket) FROM public.%I', v_rec.rollup_table)
+        INTO v_new_watermark;
+
+    UPDATE lakets._rollup_registry
+    SET watermark = COALESCE(v_new_watermark, watermark),
+        last_refreshed_at = now()
+    WHERE name = p_name;
+
+    RETURN TRUE;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- _rollup_watermark: Returns the stored watermark for a RollUp.
+-- Declared STABLE so PostgreSQL caches within a single query execution.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets._rollup_watermark(p_name TEXT)
+RETURNS TIMESTAMPTZ
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT watermark FROM lakets._rollup_registry WHERE name = p_name;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- create_rollup_view: Creates a real-time UNION view over a RollUp.
+-- The raw_query should use lakets._rollup_watermark(name) as the boundary.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets.create_rollup_view(
+    p_name TEXT,
+    p_raw_query TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_rollup_table TEXT;
+    v_rt_view TEXT;
+BEGIN
+    SELECT rollup_table, realtime_view
+    INTO v_rollup_table, v_rt_view
+    FROM lakets._rollup_registry
+    WHERE name = p_name;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'RollUp % not found', p_name;
+    END IF;
+
+    EXECUTE format('DROP VIEW IF EXISTS public.%I', v_rt_view);
+    EXECUTE format(
+        'CREATE VIEW public.%I AS SELECT * FROM public.%I UNION ALL %s',
+        v_rt_view, v_rollup_table, p_raw_query
+    );
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- drop_rollup: Drops a RollUp and all associated objects.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets.drop_rollup(p_name TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_rollup_table TEXT;
+    v_rt_view TEXT;
+BEGIN
+    SELECT rollup_table, realtime_view
+    INTO v_rollup_table, v_rt_view
+    FROM lakets._rollup_registry
+    WHERE name = p_name;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'RollUp % not found', p_name;
+    END IF;
+
+    EXECUTE format('DROP VIEW IF EXISTS public.%I', v_rt_view);
+    EXECUTE format('DROP TABLE IF EXISTS public.%I', v_rollup_table);
+    DELETE FROM lakets._rollup_registry WHERE name = p_name;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- show_rollups: Lists all RollUps with status and watermark.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets.show_rollups()
+RETURNS TABLE (
+    name              TEXT,
+    rollup_table      TEXT,
+    realtime_view     TEXT,
+    bucket_interval   INTERVAL,
+    refresh_mode      TEXT,
+    refresh_lag       INTERVAL,
+    watermark         TIMESTAMPTZ,
+    last_refreshed_at TIMESTAMPTZ,
+    source_table      TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        r.name,
+        r.rollup_table,
+        r.realtime_view,
+        r.bucket_interval,
+        r.refresh_mode,
+        r.refresh_lag,
+        r.watermark,
+        r.last_refreshed_at,
+        COALESCE(cr.schema_name || '.' || cr.table_name, 'N/A')
+    FROM lakets._rollup_registry r
+    LEFT JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
+    ORDER BY r.name;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- _rollup_invalidation_trigger_fn: Per-row trigger that computes dirty
+-- time buckets via date_bin and upserts into the invalidation log.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets._rollup_invalidation_trigger_fn()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_rec RECORD;
+    v_bucket_start TIMESTAMPTZ;
+    v_parent_table TEXT;
+    v_time_col TEXT;
+BEGIN
+    -- Resolve partition parent (same pattern as _lvc_trigger_fn / _sync_trigger_fn)
+    SELECT p.relname INTO v_parent_table
+    FROM pg_inherits i
+    JOIN pg_class ch ON i.inhrelid = ch.oid
+    JOIN pg_class p ON i.inhparent = p.oid
+    JOIN pg_namespace n ON ch.relnamespace = n.oid
+    WHERE n.nspname = TG_TABLE_SCHEMA AND ch.relname = TG_TABLE_NAME
+    LIMIT 1;
+
+    -- Get time column for this ChronoTable
+    SELECT cr.time_column INTO v_time_col
+    FROM lakets._chronotable_registry cr
+    WHERE cr.schema_name = TG_TABLE_SCHEMA
+      AND cr.table_name = COALESCE(v_parent_table, TG_TABLE_NAME);
+
+    IF v_time_col IS NULL THEN
+        IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+    END IF;
+
+    -- Find all incremental RollUps registered against this ChronoTable
+    FOR v_rec IN
+        SELECT r.id, r.bucket_interval
+        FROM lakets._rollup_registry r
+        JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
+        WHERE cr.schema_name = TG_TABLE_SCHEMA
+          AND cr.table_name = COALESCE(v_parent_table, TG_TABLE_NAME)
+          AND r.refresh_mode = 'incremental'
+    LOOP
+        IF TG_OP = 'DELETE' THEN
+            EXECUTE format('SELECT date_bin(%L, ($1).%I, %L::timestamptz)',
+                v_rec.bucket_interval, v_time_col, '2000-01-01')
+                INTO v_bucket_start USING OLD;
+        ELSE
+            EXECUTE format('SELECT date_bin(%L, ($1).%I, %L::timestamptz)',
+                v_rec.bucket_interval, v_time_col, '2000-01-01')
+                INTO v_bucket_start USING NEW;
+        END IF;
+
+        -- Upsert into invalidation log (tier = 'hot' for Lakebase mutations)
+        INSERT INTO lakets._rollup_invalidation_log (rollup_id, bucket_start, tier)
+        VALUES (v_rec.id, v_bucket_start, 'hot')
+        ON CONFLICT (rollup_id, bucket_start) DO UPDATE
+            SET invalidated_at = now(), tier = 'hot';
+    END LOOP;
+
+    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- enable_rollup_invalidation: Installs the invalidation trigger on a
+-- source ChronoTable. One trigger per table handles all RollUps.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets.enable_rollup_invalidation(p_rollup_name TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_schema TEXT;
+    v_table TEXT;
+    v_mode TEXT;
+BEGIN
+    SELECT cr.schema_name, cr.table_name, r.refresh_mode
+    INTO v_schema, v_table, v_mode
+    FROM lakets._rollup_registry r
+    JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
+    WHERE r.name = p_rollup_name;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'RollUp % not found', p_rollup_name;
+    END IF;
+
+    IF v_mode != 'incremental' THEN
+        RAISE EXCEPTION 'Invalidation requires refresh_mode = incremental (current: %)', v_mode;
+    END IF;
+
+    -- Create trigger (idempotent — same trigger name handles all RollUps on this table)
+    EXECUTE format(
+        'CREATE OR REPLACE TRIGGER trg_lakets_rollup_invalidation '
+        'AFTER INSERT OR UPDATE OR DELETE ON %I.%I '
+        'FOR EACH ROW EXECUTE FUNCTION lakets._rollup_invalidation_trigger_fn()',
+        v_schema, v_table
+    );
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- disable_rollup_invalidation: Removes invalidation trigger if no other
+-- RollUps on the same source table need it.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets.disable_rollup_invalidation(p_rollup_name TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_schema TEXT;
+    v_table TEXT;
+    v_rollup_id INT;
+    v_other_count INT;
+BEGIN
+    SELECT cr.schema_name, cr.table_name, r.id
+    INTO v_schema, v_table, v_rollup_id
+    FROM lakets._rollup_registry r
+    JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
+    WHERE r.name = p_rollup_name;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'RollUp % not found', p_rollup_name;
+    END IF;
+
+    -- Clear invalidation log entries for this RollUp
+    DELETE FROM lakets._rollup_invalidation_log WHERE rollup_id = v_rollup_id;
+
+    -- Check if other incremental RollUps on the same source table still need the trigger
+    SELECT count(*) INTO v_other_count
+    FROM lakets._rollup_registry r
+    JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
+    WHERE cr.schema_name = v_schema AND cr.table_name = v_table
+      AND r.name != p_rollup_name
+      AND r.refresh_mode = 'incremental';
+
+    IF v_other_count = 0 THEN
+        EXECUTE format(
+            'DROP TRIGGER IF EXISTS trg_lakets_rollup_invalidation ON %I.%I',
+            v_schema, v_table
+        );
+    END IF;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- invalidate_rollup_range: Manually marks a time range as dirty.
+-- Use for bulk imports (COPY bypasses triggers) or cold-tier corrections.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets.invalidate_rollup_range(
+    p_name TEXT,
+    p_from TIMESTAMPTZ,
+    p_to   TIMESTAMPTZ,
+    p_tier TEXT DEFAULT 'hot'
+)
+RETURNS INT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_rec RECORD;
+    v_bucket TIMESTAMPTZ;
+    v_count INT := 0;
+BEGIN
+    SELECT id, bucket_interval INTO v_rec
+    FROM lakets._rollup_registry WHERE name = p_name;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'RollUp % not found', p_name;
+    END IF;
+
+    -- Generate all bucket_start values in the range
+    FOR v_bucket IN
+        SELECT generate_series(
+            date_bin(v_rec.bucket_interval, p_from, '2000-01-01'::timestamptz),
+            date_bin(v_rec.bucket_interval, p_to, '2000-01-01'::timestamptz),
+            v_rec.bucket_interval
+        )
+    LOOP
+        INSERT INTO lakets._rollup_invalidation_log (rollup_id, bucket_start, tier)
+        VALUES (v_rec.id, v_bucket, p_tier)
+        ON CONFLICT (rollup_id, bucket_start) DO UPDATE
+            SET invalidated_at = now(), tier = p_tier;
+        v_count := v_count + 1;
+    END LOOP;
+
+    RETURN v_count;
+END;
+$$;

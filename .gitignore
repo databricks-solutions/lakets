@@ -1,0 +1,33 @@
+# PRDs, plans, and design docs (internal only)
+PRD_*.md
+IMPLEMENTATION_PLAN.md
+TSDB_EXPERT_REQUIREMENTS.md
+
+# Diagrams and demo (internal only)
+diagrams/
+demo/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Claude Code
+.claude/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.*

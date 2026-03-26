@@ -1,0 +1,102 @@
+bundle:
+  name: lakets
+
+variables:
+  lakebase_instance:
+    description: "Name of the Lakebase instance"
+    default: "lakets-timeseries"
+  delta_catalog:
+    description: "Unity Catalog catalog for tiered data"
+    default: "main"
+  delta_schema:
+    description: "Unity Catalog schema for tiered data"
+    default: "lakets"
+
+resources:
+  jobs:
+    lakets_partition_manager:
+      name: "LakeTS - Partition Manager"
+      description: "Pre-creates future partitions for all LakeTS hypertables"
+      schedule:
+        quartz_cron_expression: "0 0 */6 * * ?"  # Every 6 hours
+        timezone_id: "UTC"
+      tasks:
+        - task_key: ensure_partitions
+          python_wheel_task:
+            package_name: lakets
+            entry_point: partition_manager
+            parameters:
+              - ${var.lakebase_instance}
+          existing_cluster_id: ${var.cluster_id}
+
+    lakets_compression:
+      name: "LakeTS - Compression & Tiering"
+      description: "Tiers old chunks from Lakebase to Delta Lake"
+      schedule:
+        quartz_cron_expression: "0 0 2 * * ?"  # Daily at 2 AM UTC
+        timezone_id: "UTC"
+      tasks:
+        - task_key: compress_and_tier
+          python_wheel_task:
+            package_name: lakets
+            entry_point: compression_job
+            parameters:
+              - ${var.lakebase_instance}
+              - ${var.delta_catalog}
+          existing_cluster_id: ${var.cluster_id}
+
+    lakets_retention:
+      name: "LakeTS - Retention"
+      description: "Drops expired data from Lakebase and Delta Lake"
+      schedule:
+        quartz_cron_expression: "0 0 3 * * ?"  # Daily at 3 AM UTC
+        timezone_id: "UTC"
+      tasks:
+        - task_key: enforce_retention
+          python_wheel_task:
+            package_name: lakets
+            entry_point: retention_job
+            parameters:
+              - ${var.lakebase_instance}
+          existing_cluster_id: ${var.cluster_id}
+
+    lakets_rollup_refresh:
+      name: "LakeTS - RollUp Refresh"
+      description: "Incrementally refreshes all RollUps"
+      schedule:
+        quartz_cron_expression: "0 */15 * * * ?"  # Every 15 minutes
+        timezone_id: "UTC"
+      tasks:
+        - task_key: refresh_rollups
+          python_wheel_task:
+            package_name: lakets
+            entry_point: rollup_refresh
+            parameters:
+              - ${var.lakebase_instance}
+          existing_cluster_id: ${var.cluster_id}
+
+    lakets_cold_rollup_refresh:
+      name: "LakeTS - Cold-Tier RollUp Refresh"
+      description: "Re-aggregates cold-tier dirty buckets from Delta Lake"
+      tasks:
+        - task_key: cold_rollup_refresh
+          python_wheel_task:
+            package_name: lakets
+            entry_point: cold_rollup_refresh
+            parameters:
+              - ${var.lakebase_instance}
+              - ${var.delta_catalog}
+              - ${var.delta_schema}
+          existing_cluster_id: ${var.cluster_id}
+
+targets:
+  dev:
+    mode: development
+    default: true
+    variables:
+      cluster_id: ""  # Set to your dev cluster ID
+
+  prod:
+    mode: production
+    variables:
+      cluster_id: ""  # Set to your prod cluster ID

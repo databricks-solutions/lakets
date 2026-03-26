@@ -1,0 +1,48 @@
+{
+  "dashboard": {
+    "title": "LakeTS Ingest Monitoring",
+    "description": "Real-time ingest rate and partition growth monitoring",
+    "tags": ["lakets", "ingest", "monitoring"],
+    "timezone": "utc",
+    "refresh": "10s",
+    "panels": [
+      {
+        "title": "Ingest Rate (rows/sec) - Last Hour",
+        "description": "Estimated ingest rate based on partition row counts",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+        "targets": [{
+          "rawSql": "SELECT lakets.time_bucket('5 minutes'::interval, time) as time, count(*) / 300.0 as rows_per_sec FROM $hypertable WHERE time > now() - interval '1 hour' GROUP BY 1 ORDER BY 1",
+          "format": "time_series"
+        }]
+      },
+      {
+        "title": "Rows per Chunk",
+        "type": "bargauge",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "targets": [{
+          "rawSql": "SELECT chunk_name, row_count FROM lakets.show_chunks('$hypertable') WHERE row_count IS NOT NULL ORDER BY range_start DESC LIMIT 10",
+          "format": "table"
+        }]
+      },
+      {
+        "title": "Partition Timeline",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "targets": [{
+          "rawSql": "SELECT chunk_name, range_start, range_end, status, created_at FROM lakets.show_chunks('$hypertable') ORDER BY range_start DESC LIMIT 20",
+          "format": "table"
+        }]
+      }
+    ],
+    "templating": {
+      "list": [{
+        "name": "hypertable",
+        "label": "Hypertable",
+        "type": "query",
+        "query": "SELECT table_name FROM lakets._hypertable_registry ORDER BY table_name",
+        "current": { "text": "metrics", "value": "metrics" }
+      }]
+    }
+  }
+}
