@@ -20,6 +20,9 @@ This guide maps TimescaleDB concepts and functions to their LakeTS equivalents.
 | `add_retention_policy(t, '30d')` | `lakets.add_retention_policy('t', '30 days')` | Same semantics |
 | `CREATE MATERIALIZED VIEW ... WITH (timescaledb.continuous)` | `lakets.create_rollup(name, query)` | Function-based API; creates a regular table, not a matview |
 | `refresh_continuous_aggregate(view, ...)` | `lakets.refresh_rollup(name)` | LakeTS does true incremental refresh (only dirty buckets) |
+| Hierarchical continuous aggregates | `lakets.create_rollup(..., p_depends_on := ARRAY['parent'])` | DAG-based dependency ordering with `refresh_rollup_cascade()` |
+| N/A | `lakets.refresh_rollup_cascade(name)` | Refreshes all dependencies in topological order |
+| N/A | `lakets.enable_rollup_export(name, delta_table)` | Export RollUp Tables to Delta Lake |
 
 ## Key Differences
 
@@ -54,6 +57,8 @@ TimescaleDB compresses chunks in-place (row -> columnar). LakeTS tiers data to D
 ### 3. RollUps (replaces continuous aggregates)
 
 TimescaleDB tracks invalidation regions via WAL and refreshes only changed buckets. LakeTS now has an equivalent capability via the **RollUp Engine**: `create_rollup()` creates a regular table (not a materialized view) with watermark-based incremental refresh — only dirty time buckets are recomputed. For real-time freshness, `create_rollup_view()` UNIONs the RollUp Table with a raw query for data beyond the watermark. For mutation tracking, `enable_rollup_invalidation()` installs an opt-in trigger that logs dirty buckets.
+
+**New in Modules 23–28**: LakeTS now supports chunk-skip pruning (skip unmodified partitions), batch set-based refresh (2 SQL statements per batch instead of 2N), DAG-based dependency orchestration for hierarchical RollUps (`refresh_rollup_cascade()`), automatic hot/cold tier detection, bulk import invalidation (captures `COPY FROM`), and export of RollUp Tables to Delta Lake.
 
 ### 4. Type constraints
 

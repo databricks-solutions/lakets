@@ -10,7 +10,7 @@ LakeTS brings TimescaleDB-equivalent time series capabilities to Databricks Lake
 | **Multi-Metric Tables** | InfluxDB-style tag + field model with `create_metric_table()` |
 | **Time Series Functions** | `time_bucket`, `first`, `last`, `locf`, `interpolate`, `delta`, `rate`, `histogram` |
 | **Gap-filling** | `time_bucket_gapfill` + LEFT JOIN for continuous time series |
-| **RollUp Engine** | Incremental aggregates with per-bucket refresh, invalidation tracking, and cold-tier re-aggregation |
+| **RollUp Engine** | Incremental aggregates with per-bucket refresh, invalidation tracking, cold-tier re-aggregation, chunk-skip pruning, batch refresh, DAG orchestration, and Delta export |
 | **Compression & Tiering** | Policy-based tiering from Lakebase to Delta Lake |
 | **Retention** | Automated data lifecycle management across both tiers |
 | **Lakehouse Sync** | CDC-based replication to Delta via shadow table pattern |
@@ -51,18 +51,26 @@ SELECT lakets.add_retention_policy('metrics', '30 days');
 
 ## Architecture
 
-```
-Application (Grafana / Telegraf / Custom)
-    |
-LakeTS Toolkit (PL/pgSQL functions)
-    |
-+-------------------+    +---------------------+
-| HOT: Lakebase     |    | COLD: Delta Lake    |
-| - Partitioned     |    | - Columnar Parquet  |
-| - Sub-10ms reads  |    | - Photon analytics  |
-| - Real-time write | -> | - Unity Catalog     |
-+-------------------+    +---------------------+
-   (Lakehouse Sync CDC)
+```mermaid
+flowchart LR
+    APP["Application<br/>(Grafana / Telegraf / Custom)"]
+    LT["LakeTS Toolkit<br/>(PL/pgSQL functions)"]
+    HOT["HOT: Lakebase<br/>Partitioned<br/>Sub-10ms reads<br/>Real-time writes"]
+    COLD["COLD: Delta Lake<br/>Columnar Parquet<br/>Photon analytics<br/>Unity Catalog"]
+    ROLLUP["RollUp Tables<br/>Incremental aggregates<br/>DAG orchestration<br/>Delta export"]
+
+    APP --> LT
+    LT --> HOT
+    HOT -->|"Lakehouse Sync CDC"| COLD
+    HOT --> ROLLUP
+    ROLLUP -->|"rollup_export.py"| COLD
+    COLD -.->|"Federation"| LT
+
+    style HOT fill:#2ECC71,color:#fff
+    style COLD fill:#9B59B6,color:#fff
+    style ROLLUP fill:#E67E22,color:#fff
+    style APP fill:#3498DB,color:#fff
+    style LT fill:#34495E,color:#fff
 ```
 
 ## Project Structure
@@ -78,7 +86,8 @@ docs/              -- Documentation
 ## Documentation
 
 - [Getting Started](docs/getting_started.md) - Install, create ChronoTables, query
-- [API Reference](docs/api_reference.md) - All 61+ functions documented
+- [How It Works](docs/how_it_works.md) - Deep dive into internals with diagrams
+- [API Reference](docs/api_reference.md) - All 70+ functions documented
 - [Migration from TimescaleDB](docs/migration_from_timescaledb.md) - Function mapping + migration steps
 - [Lakehouse Sync Setup](docs/lakehouse_sync_setup.md) - Delta Lake integration
 
