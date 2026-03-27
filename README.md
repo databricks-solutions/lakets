@@ -22,29 +22,75 @@ LakeTS brings TimescaleDB-equivalent time series capabilities to Databricks Lake
 | **Monitoring** | Prometheus-compatible metrics endpoint |
 | **Benchmarks** | TSBS-adapted suite with TimescaleDB comparison |
 
+## Install
+
+### Option A: Single-file install (recommended)
+
+Download the latest release from [GitHub Releases](../../releases):
+
+```bash
+# Download latest release
+curl -LO https://github.com/<owner>/LakeTS/releases/latest/download/lakets.sql
+
+# Verify checksum
+curl -LO https://github.com/<owner>/LakeTS/releases/latest/download/lakets.sql.sha256
+sha256sum -c lakets.sql.sha256
+
+# Install on Lakebase
+psql -h <host> -U <user> -d databricks_postgres -f lakets.sql
+```
+
+### Option B: From source
+
+```bash
+git clone https://github.com/<owner>/LakeTS.git
+cd LakeTS
+psql -h <host> -U <user> -d databricks_postgres -f sql/99_install.sql
+```
+
+### Option C: Via psycopg2 (Databricks notebooks)
+
+```python
+import psycopg2
+conn = psycopg2.connect(host="<host>", user="<user>", dbname="databricks_postgres",
+                        password="<token>", sslmode="require")
+conn.autocommit = True
+with open('lakets.sql') as f:
+    conn.cursor().execute(f.read())
+```
+
+### Check installed version
+
+```sql
+SELECT version, installed_at, modules FROM lakets._version ORDER BY installed_at DESC LIMIT 1;
+```
+
+### Uninstall
+
+```bash
+psql -h <host> -U <user> -d databricks_postgres -f sql/00_uninstall.sql
+```
+
 ## Quick Start
 
 ```sql
--- 1. Install (run against Lakebase)
-\ir sql/99_install.sql
-
--- 2. Create a ChronoTable (single-metric)
+-- Create a ChronoTable (single-metric)
 CREATE TABLE metrics (time TIMESTAMPTZ NOT NULL, device TEXT, cpu FLOAT8);
 SELECT lakets.create_chronotable('metrics', 'time', '1 day');
 
--- 2b. Or create a Multi-Metric ChronoTable (InfluxDB-style)
+-- Or create a Multi-Metric ChronoTable (InfluxDB-style)
 SELECT lakets.create_metric_table('system_metrics',
     ARRAY['host','region'], ARRAY['cpu','memory','disk_io'], '1 day');
 
--- 3. Query with time series functions
+-- Query with time series functions
 SELECT lakets.time_bucket('1 hour'::interval, time) AS hour,
        avg(cpu), lakets.first(cpu, time), lakets.last(cpu, time)
 FROM metrics GROUP BY 1 ORDER BY 1;
 
--- 4. Enable Last Value Cache (sub-10ms latest state)
+-- Enable Last Value Cache (sub-10ms latest state)
 SELECT lakets.enable_lvc('system_metrics', ARRAY['host'], ARRAY['cpu','memory']);
 
--- 5. Set up lifecycle policies
+-- Set up lifecycle policies
 SELECT lakets.add_compression_policy('metrics', '7 days');
 SELECT lakets.add_retention_policy('metrics', '30 days');
 ```
