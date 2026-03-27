@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-LakeTS is a time series toolkit for Databricks Lakebase — pure SQL (PL/pgSQL) functions that bring TimescaleDB-equivalent capabilities to PostgreSQL 16+ on Lakebase. No custom extensions. Hot tier (Lakebase) + cold tier (Delta Lake) hybrid architecture.
+LakeTS is a time series toolkit for Databricks Lakebase — pure SQL (PL/pgSQL) functions for PostgreSQL 16+ on Lakebase. No custom extensions. Hot tier (Lakebase) + cold tier (Delta Lake) hybrid architecture.
 
 All SQL objects live in the `lakets` schema.
 
@@ -151,7 +151,7 @@ These extend `03_rollup.sql` with performance optimizations:
 ## Directory Notes
 
 - `lakets/` — Legacy directory structure (older versions of the same modules). The canonical code is in `sql/`, `tests/`, `databricks/`
-- `demo/financial/` — Stock market demo with data generator, 13 benchmarks, and TimescaleDB comparison
+- `demo/financial/` — Stock market demo with data generator and benchmarks
 - `diagrams/` — Architecture diagrams (Mermaid `.mmd`, DrawIO `.drawio`, and rendered `.png`)
 - `scripts/` — Presentation/diagram generation utilities
-- PRD files at root: `PRD_LakeTS.md` (V1), `PRD_LakeTS_V2.md`, `PRD_LakeTS_Incremental_Refresh.md`, `PRD_LakeTS_RollUp_Optimization.md`, `PRD_LakeTS_V3_Federation.md`
+- `docs/design/` — PRDs and design documents (gitignored)

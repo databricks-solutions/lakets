@@ -15,8 +15,7 @@ A deep dive into how LakeTS turns Databricks Lakebase into a full-featured time 
 7. [How Retention Works](#7-how-retention-works)
 8. [How Lakehouse Sync Works](#8-how-lakehouse-sync-works)
 9. [Life of a Data Point](#9-life-of-a-data-point-end-to-end)
-10. [What Makes This Different from TimescaleDB](#10-what-makes-this-different-from-timescaledb)
-11. [How RollUp Optimization Works (Modules 23–28)](#11-how-rollup-optimization-works-modules-2328)
+10. [How RollUp Optimization Works (Modules 23–28)](#10-how-rollup-optimization-works-modules-2328)
 
 ---
 
@@ -31,7 +30,7 @@ Plain PostgreSQL struggles with this because:
 - **No easy way to archive old data** without manual partition management
 - **Common patterns** like "average temperature per hour with gap-filling" require complex SQL
 
-Time series databases like TimescaleDB solve this by adding a layer on top of Postgres. LakeTS does the same thing — but for Databricks Lakebase, with the added benefit of tiering cold data to Delta Lake.
+LakeTS solves this by adding a time series layer on top of Postgres — purpose-built for Databricks Lakebase, with the added benefit of tiering cold data to Delta Lake.
 
 ---
 
@@ -556,36 +555,7 @@ gantt
 
 ---
 
-## 10. What Makes This Different from TimescaleDB
-
-| Aspect | TimescaleDB | LakeTS |
-|--------|-------------|--------|
-| **Runs on** | Any Postgres | Databricks Lakebase |
-| **Partitioning** | Custom "hypertable" engine (C extension) | ChronoTables: Native Postgres RANGE partitioning |
-| **Time Series Functions** | C-optimized native functions | PL/pgSQL functions (slightly slower, but zero extension install) |
-| **Compression** | In-place columnar (row -> columnar in same DB) | Tier to Delta Lake (Parquet — better compression, separate storage) |
-| **Cold storage** | S3 tiering (Timescale Cloud only) | Delta Lake with ACID, time travel, Unity Catalog governance |
-| **Analytics on cold data** | Limited (decompress to query) | Photon engine, Spark, SQL Analytics (native Delta Lake) |
-| **Pre-computed aggregates** | WAL-based invalidation tracking (refresh only changed buckets) | RollUps: incremental per-bucket DELETE+INSERT with invalidation log |
-| **Gap-filling** | Integrated in GROUP BY (`time_bucket_gapfill + locf`) | LEFT JOIN pattern (more explicit, equally powerful) |
-| **AI/ML integration** | None | Native: MLflow, Feature Store, Vector Search, LLMs |
-| **Cost model** | Per-node licensing | Serverless, scale-to-zero, pay-per-query |
-
-### Where LakeTS Wins
-- **No extension installation** — pure SQL, works on any Lakebase instance
-- **Delta Lake integration** — cold data gets ACID guarantees, time travel, Unity Catalog governance
-- **Databricks ecosystem** — ML, notebooks, dashboards, jobs all native
-- **Cost** — scale-to-zero, no idle compute charges
-
-### Where TimescaleDB Wins
-- **Raw performance** — C-native functions are faster than PL/pgSQL
-- **WAL-based invalidation** — tracks changes at the WAL level (LakeTS uses trigger-based invalidation)
-- **Mature ecosystem** — years of optimization, larger community
-- **In-place compression** — no need for separate cold storage
-
----
-
-## 11. How RollUp Optimization Works (Modules 23–28)
+## 10. How RollUp Optimization Works (Modules 23–28)
 
 The base RollUp Engine handles the core refresh loop, but at scale several limitations emerge:
 

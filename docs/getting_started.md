@@ -1,6 +1,6 @@
 # Getting Started with LakeTS
 
-LakeTS is an open-source time series toolkit for Databricks Lakebase. It adds TimescaleDB-like capabilities (automatic partitioning, time series functions, incremental rollups, compression, retention) to Lakebase's native PostgreSQL.
+LakeTS is a time series toolkit for Databricks Lakebase. It adds automatic partitioning, time series functions, incremental rollups, compression, and retention to Lakebase's native PostgreSQL — all in pure SQL.
 
 ## Prerequisites
 
@@ -37,7 +37,7 @@ SELECT count(*) FROM information_schema.routines WHERE routine_schema = 'lakets'
 
 ## 2. Create Your First ChronoTable
 
-A **ChronoTable** is a time-partitioned table — LakeTS's core abstraction (equivalent to TimescaleDB's hypertable, renamed for LakeTS).
+A **ChronoTable** is a time-partitioned table — LakeTS's core abstraction for time series data.
 
 **Option A: Single-metric table** (simple):
 ```sql
@@ -357,6 +357,5 @@ See [lakehouse_sync_setup.md](lakehouse_sync_setup.md) for full setup instructio
 ## Next Steps
 
 - [API Reference](api_reference.md) - Complete function documentation
-- [Migration from TimescaleDB](migration_from_timescaledb.md) - Switching from TimescaleDB
 - [Lakehouse Sync Setup](lakehouse_sync_setup.md) - Delta Lake integration
 - Deploy [Databricks Workflows](../databricks/bundles/databricks.yml) for automated partition management, compression, retention, and aggregate refresh

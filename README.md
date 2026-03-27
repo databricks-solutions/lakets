@@ -1,6 +1,6 @@
 # LakeTS - Time Series Toolkit for Databricks Lakebase
 
-LakeTS brings TimescaleDB-equivalent time series capabilities to Databricks Lakebase using a pure SQL + Delta Lake hybrid architecture. No custom extensions required.
+LakeTS is a time series toolkit for Databricks Lakebase — pure SQL (PL/pgSQL) functions with a hot tier (Lakebase) + cold tier (Delta Lake) hybrid architecture. No custom extensions required.
 
 ## Features
 
@@ -20,7 +20,7 @@ LakeTS brings TimescaleDB-equivalent time series capabilities to Databricks Lake
 | **Bulk Ingest** | `ingest_batch()` for JSONB arrays + `ingest_prometheus()` |
 | **Downsampling Registry** | Multi-resolution pipeline metadata + `query_auto_resolution()` |
 | **Monitoring** | Prometheus-compatible metrics endpoint |
-| **Benchmarks** | TSBS-adapted suite with TimescaleDB comparison |
+| **Benchmarks** | TSBS-adapted benchmark suite |
 
 ## Install
 
@@ -125,7 +125,7 @@ flowchart LR
 sql/               -- SQL functions (install on Lakebase)
 tests/             -- SQL test suites
 databricks/        -- Workflow jobs + Asset Bundle
-benchmarks/        -- TSBS-adapted benchmark suite
+benchmarks/        -- Benchmark suite (gitignored)
 docs/              -- Documentation
 ```
 
@@ -134,16 +134,7 @@ docs/              -- Documentation
 - [Getting Started](docs/getting_started.md) - Install, create ChronoTables, query
 - [How It Works](docs/how_it_works.md) - Deep dive into internals with diagrams
 - [API Reference](docs/api_reference.md) - All 70+ functions documented
-- [Migration from TimescaleDB](docs/migration_from_timescaledb.md) - Function mapping + migration steps
 - [Lakehouse Sync Setup](docs/lakehouse_sync_setup.md) - Delta Lake integration
-
-## Benchmark Results (50K rows, CU_1)
-
-| Benchmark | LakeTS | TimescaleDB Baseline |
-|-----------|--------|---------------------|
-| Ingest | 548K rows/sec | ~500K rows/sec |
-| Gap-Fill | 11ms | ~10ms |
-| RollUp Incremental Refresh | <10ms (incremental) | ~200ms (full rebuild) |
 
 ## Requirements
 
