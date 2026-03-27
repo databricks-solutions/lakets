@@ -4,7 +4,6 @@ bundle:
 variables:
   lakebase_instance:
     description: "Name of the Lakebase instance"
-    default: "lakets-timeseries"
   delta_catalog:
     description: "Unity Catalog catalog for tiered data"
     default: "main"

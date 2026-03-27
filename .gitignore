@@ -1,7 +1,5 @@
-# PRDs, plans, and design docs (internal only)
-PRD_*.md
-IMPLEMENTATION_PLAN.md
-TSDB_EXPERT_REQUIREMENTS.md
+# Design docs — PRDs, plans, requirements (internal only)
+docs/design/
 
 # Diagrams, demo, scripts, and benchmarks (internal only)
 diagrams/

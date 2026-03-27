@@ -3,7 +3,7 @@
 -- Run this file to install the complete LakeTS toolkit on a Lakebase instance.
 --
 -- Usage:
---   psql -h <host> -U <user> -d databricks_postgres -f 99_install.sql
+--   psql -h <host> -U <user> -d <database> -f 99_install.sql
 --
 -- Or execute each file in order via your preferred SQL client.
 -- =============================================================================

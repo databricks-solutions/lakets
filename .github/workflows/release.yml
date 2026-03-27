@@ -54,14 +54,14 @@ jobs:
             sha256sum -c lakets.sql.sha256
 
             # Install
-            psql -h <host> -U <user> -d databricks_postgres -f lakets.sql
+            psql -h <host> -U <user> -d <database> -f lakets.sql
             ```
 
             ### Install via psycopg2
 
             ```python
             import psycopg2
-            conn = psycopg2.connect(host="<host>", user="<user>", dbname="databricks_postgres", password="<token>", sslmode="require")
+            conn = psycopg2.connect(host="<host>", user="<user>", dbname="<database>", password="<token>", sslmode="require")
             conn.autocommit = True
             with open('lakets.sql') as f:
                 conn.cursor().execute(f.read())

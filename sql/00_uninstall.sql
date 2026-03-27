@@ -3,7 +3,7 @@
 -- Completely removes all LakeTS objects from the lakets schema.
 --
 -- Usage:
---   psql -h <host> -U <user> -d databricks_postgres -f sql/00_uninstall.sql
+--   psql -h <host> -U <user> -d <database> -f sql/00_uninstall.sql
 --
 -- WARNING: This drops ALL LakeTS objects including metadata. User tables in
 -- other schemas (public, etc.) are NOT affected.

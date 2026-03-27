@@ -37,7 +37,7 @@ curl -LO https://github.com/<owner>/LakeTS/releases/latest/download/lakets.sql.s
 sha256sum -c lakets.sql.sha256
 
 # Install on Lakebase
-psql -h <host> -U <user> -d databricks_postgres -f lakets.sql
+psql -h <host> -U <user> -d <database> -f lakets.sql
 ```
 
 ### Option B: From source
@@ -45,14 +45,14 @@ psql -h <host> -U <user> -d databricks_postgres -f lakets.sql
 ```bash
 git clone https://github.com/<owner>/LakeTS.git
 cd LakeTS
-psql -h <host> -U <user> -d databricks_postgres -f sql/99_install.sql
+psql -h <host> -U <user> -d <database> -f sql/99_install.sql
 ```
 
 ### Option C: Via psycopg2 (Databricks notebooks)
 
 ```python
 import psycopg2
-conn = psycopg2.connect(host="<host>", user="<user>", dbname="databricks_postgres",
+conn = psycopg2.connect(host="<host>", user="<user>", dbname="<database>",
                         password="<token>", sslmode="require")
 conn.autocommit = True
 with open('lakets.sql') as f:
@@ -68,7 +68,7 @@ SELECT version, installed_at, modules FROM lakets._version ORDER BY installed_at
 ### Uninstall
 
 ```bash
-psql -h <host> -U <user> -d databricks_postgres -f sql/00_uninstall.sql
+psql -h <host> -U <user> -d <database> -f sql/00_uninstall.sql
 ```
 
 ## Quick Start

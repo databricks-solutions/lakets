@@ -134,6 +134,8 @@ def _get_spark():
 
 
 if __name__ == "__main__":
-    instance = sys.argv[1] if len(sys.argv) > 1 else "lakets-timeseries"
+    import os
+
+    instance = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_INSTANCE"]
     name = sys.argv[2] if len(sys.argv) > 2 else None
     run(instance, name)

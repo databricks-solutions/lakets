@@ -170,7 +170,9 @@ def _get_warehouse_id(w: WorkspaceClient) -> str:
 
 
 if __name__ == "__main__":
-    instance = sys.argv[1] if len(sys.argv) > 1 else "lakets-timeseries"
+    import os
+
+    instance = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_INSTANCE"]
     cat = sys.argv[2] if len(sys.argv) > 2 else "main"
     sch = sys.argv[3] if len(sys.argv) > 3 else "lakets_sync"
     run(instance, cat, sch)

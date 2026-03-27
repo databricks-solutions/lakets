@@ -13,7 +13,7 @@ LakeTS is an open-source time series toolkit for Databricks Lakebase. It adds Ti
 Connect to your Lakebase instance and run the installer:
 
 ```bash
-psql -h <your-lakebase-host> -U <user>@databricks.com -d databricks_postgres -f lakets/sql/99_install.sql
+psql -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f lakets/sql/99_install.sql
 ```
 
 Or execute each file in order:

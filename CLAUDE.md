@@ -17,19 +17,19 @@ make checksum        # → dist/lakets.sql.sha256
 make clean           # Remove build artifacts
 
 # Install all modules on a Lakebase instance (from source)
-psql -h <host> -U <user> -d databricks_postgres -f sql/99_install.sql
+psql -h <host> -U <user> -d <database> -f sql/99_install.sql
 
 # Install from built single file
-psql -h <host> -U <user> -d databricks_postgres -f dist/lakets.sql
+psql -h <host> -U <user> -d <database> -f dist/lakets.sql
 
 # Uninstall (drops lakets schema)
-psql -h <host> -U <user> -d databricks_postgres -f sql/00_uninstall.sql
+psql -h <host> -U <user> -d <database> -f sql/00_uninstall.sql
 
 # Run a single test suite
-psql -h <host> -U <user> -d databricks_postgres -f tests/test_rollup.sql
+psql -h <host> -U <user> -d <database> -f tests/test_rollup.sql
 
 # Run all tests (sequentially)
-for f in tests/test_*.sql; do psql -h <host> -U <user> -d databricks_postgres -f "$f"; done
+for f in tests/test_*.sql; do psql -h <host> -U <user> -d <database> -f "$f"; done
 
 # Deploy Databricks workflow jobs
 databricks bundle deploy -t dev

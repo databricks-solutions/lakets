@@ -1,7 +1,7 @@
 # LakeTS Test Report
 
 **Date:** 2026-03-26
-**Environment:** Lakebase `lakets-timeseries` (PG 16.12, CU_1, us-west-2 staging)
+**Environment:** Lakebase provisioned instance (PG 16.12, CU_1)
 **Branch:** `feat/rollup-optimization-m23-m28`
 
 ---
@@ -293,5 +293,5 @@
 - **Execution time:** ~51 seconds for full suite
 - **Database:** Lakebase provisioned instance (CU_1)
 - **PostgreSQL version:** 16.12
-- **Connection:** `ep-aged-mouse-y1duge6j.database.us-west-2.staging.cloud.databricks.com:5432`
+- **Connection:** Lakebase endpoint (redacted)
 - **psql version:** 18.3 (Homebrew)
