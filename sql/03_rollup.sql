@@ -14,7 +14,8 @@ CREATE OR REPLACE FUNCTION lakets.create_rollup(
     p_bucket_interval INTERVAL DEFAULT '1 hour',
     p_source_table    TEXT     DEFAULT NULL,
     p_source_schema   TEXT     DEFAULT 'public',
-    p_refresh_mode    TEXT     DEFAULT 'incremental'
+    p_refresh_mode    TEXT     DEFAULT 'incremental',
+    p_depends_on      TEXT[]   DEFAULT '{}'
 )
 RETURNS INT
 LANGUAGE plpgsql
@@ -27,13 +28,18 @@ DECLARE
     v_idx_cols TEXT := '';
     v_col RECORD;
     v_watermark TIMESTAMPTZ;
+    v_bucket_col TEXT;
+    v_time_col TEXT;
+    v_dep_ids INT[] := '{}';
+    v_dep_name TEXT;
+    v_dep_id INT;
 BEGIN
     IF EXISTS (SELECT 1 FROM lakets._rollup_registry WHERE name = p_name) THEN
         RAISE EXCEPTION 'RollUp % already exists', p_name;
     END IF;
 
     IF p_source_table IS NOT NULL THEN
-        SELECT id INTO v_chronotable_id
+        SELECT id, time_column INTO v_chronotable_id, v_time_col
         FROM lakets._chronotable_registry
         WHERE schema_name = p_source_schema AND table_name = p_source_table;
 
@@ -43,11 +49,25 @@ BEGIN
         END IF;
     END IF;
 
+    -- Resolve depends_on names to IDs (M25)
+    IF p_depends_on IS NOT NULL AND array_length(p_depends_on, 1) > 0 THEN
+        FOREACH v_dep_name IN ARRAY p_depends_on LOOP
+            SELECT id INTO v_dep_id FROM lakets._rollup_registry WHERE name = v_dep_name;
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'Dependency RollUp % not found', v_dep_name;
+            END IF;
+            v_dep_ids := array_append(v_dep_ids, v_dep_id);
+        END LOOP;
+    END IF;
+
     v_rollup_table := '_rollup_' || p_name;
     v_rt_view := '_rollup_rt_' || p_name;
 
     -- Create table with initial data load
     EXECUTE format('CREATE TABLE public.%I AS %s', v_rollup_table, p_query);
+
+    -- Auto-detect bucket column (M27)
+    v_bucket_col := lakets._detect_bucket_column(p_query);
 
     -- Build unique index on ALL columns (supports UPSERT and dedup)
     FOR v_col IN
@@ -67,16 +87,18 @@ BEGIN
             'idx_' || v_rollup_table || '_unique', v_rollup_table, v_idx_cols);
     END IF;
 
-    -- Read initial watermark
-    EXECUTE format('SELECT max(bucket) FROM public.%I', v_rollup_table)
+    -- Read initial watermark using detected bucket column
+    EXECUTE format('SELECT max(%I) FROM public.%I', v_bucket_col, v_rollup_table)
         INTO v_watermark;
 
-    -- Register
+    -- Register with new columns
     INSERT INTO lakets._rollup_registry
         (name, source_chronotable_id, rollup_table, realtime_view,
-         bucket_interval, refresh_mode, query_text, watermark, last_refreshed_at)
+         bucket_interval, refresh_mode, query_text, watermark, last_refreshed_at,
+         bucket_column, source_time_column, depends_on)
     VALUES (p_name, v_chronotable_id, v_rollup_table, v_rt_view,
-            p_bucket_interval, p_refresh_mode, p_query, v_watermark, now())
+            p_bucket_interval, p_refresh_mode, p_query, v_watermark, now(),
+            v_bucket_col, v_time_col, v_dep_ids)
     RETURNING id INTO v_rollup_id;
 
     RETURN v_rollup_id;
@@ -95,7 +117,9 @@ DECLARE
     v_rec RECORD;
     v_dirty_from TIMESTAMPTZ;
     v_new_watermark TIMESTAMPTZ;
-    v_inv RECORD;
+    v_bucket_col TEXT;
+    v_query TEXT;
+    v_dirty_buckets TIMESTAMPTZ[];
 BEGIN
     SELECT r.*, cr.time_column
     INTO v_rec
@@ -114,6 +138,9 @@ BEGIN
         RETURN FALSE;
     END IF;
 
+    -- Use detected bucket column or default (M27)
+    v_bucket_col := COALESCE(v_rec.bucket_column, 'bucket');
+
     IF v_rec.refresh_mode = 'full' THEN
         -- Full mode: TRUNCATE + re-INSERT
         EXECUTE format('TRUNCATE public.%I', v_rec.rollup_table);
@@ -124,38 +151,45 @@ BEGIN
                         - v_rec.bucket_interval;
 
         -- Phase 1: Watermark-based refresh (current window)
-        EXECUTE format('DELETE FROM public.%I WHERE bucket >= %L',
-            v_rec.rollup_table, v_dirty_from);
+        -- Attempt predicate injection for scan-level pruning (M23)
+        IF COALESCE(v_rec.predicate_injection, TRUE) AND v_rec.source_time_column IS NOT NULL THEN
+            v_query := lakets._inject_time_predicate(
+                v_rec.query_text, v_rec.source_time_column, v_dirty_from
+            );
+        ELSE
+            v_query := v_rec.query_text;
+        END IF;
+
+        EXECUTE format('DELETE FROM public.%I WHERE %I >= %L',
+            v_rec.rollup_table, v_bucket_col, v_dirty_from);
 
         EXECUTE format(
-            'INSERT INTO public.%I SELECT * FROM (%s) _q WHERE _q.bucket >= %L',
-            v_rec.rollup_table, v_rec.query_text, v_dirty_from
+            'INSERT INTO public.%I SELECT * FROM (%s) _q WHERE _q.%I >= %L',
+            v_rec.rollup_table, v_query, v_bucket_col, v_dirty_from
         );
 
-        -- Phase 2: Process hot-tier invalidation log entries (historical dirty buckets)
-        FOR v_inv IN
-            SELECT DISTINCT bucket_start
-            FROM lakets._rollup_invalidation_log
-            WHERE rollup_id = v_rec.id
-              AND tier = 'hot'
-              AND bucket_start < v_dirty_from
-        LOOP
-            EXECUTE format('DELETE FROM public.%I WHERE bucket = %L',
-                v_rec.rollup_table, v_inv.bucket_start);
+        -- Phase 2: Batch refresh of hot-tier invalidation log entries (M24)
+        SELECT array_agg(DISTINCT bucket_start ORDER BY bucket_start)
+        INTO v_dirty_buckets
+        FROM lakets._rollup_invalidation_log
+        WHERE rollup_id = v_rec.id
+          AND tier = 'hot'
+          AND bucket_start < v_dirty_from;
 
-            EXECUTE format(
-                'INSERT INTO public.%I SELECT * FROM (%s) _q WHERE _q.bucket = %L',
-                v_rec.rollup_table, v_rec.query_text, v_inv.bucket_start
+        IF v_dirty_buckets IS NOT NULL AND array_length(v_dirty_buckets, 1) > 0 THEN
+            PERFORM lakets._refresh_buckets_chunked(
+                v_rec.id, v_rec.rollup_table, v_rec.query_text,
+                v_bucket_col, v_dirty_buckets, 100
             );
-        END LOOP;
+        END IF;
 
         -- Clear processed hot-tier entries
         DELETE FROM lakets._rollup_invalidation_log
         WHERE rollup_id = v_rec.id AND tier = 'hot';
     END IF;
 
-    -- Advance watermark
-    EXECUTE format('SELECT max(bucket) FROM public.%I', v_rec.rollup_table)
+    -- Advance watermark using detected bucket column
+    EXECUTE format('SELECT max(%I) FROM public.%I', v_bucket_col, v_rec.rollup_table)
         INTO v_new_watermark;
 
     UPDATE lakets._rollup_registry
@@ -250,7 +284,10 @@ RETURNS TABLE (
     refresh_lag       INTERVAL,
     watermark         TIMESTAMPTZ,
     last_refreshed_at TIMESTAMPTZ,
-    source_table      TEXT
+    source_table      TEXT,
+    bucket_column     TEXT,
+    depends_on        INT[],
+    export_enabled    BOOLEAN
 )
 LANGUAGE plpgsql
 AS $$
@@ -265,7 +302,10 @@ BEGIN
         r.refresh_lag,
         r.watermark,
         r.last_refreshed_at,
-        COALESCE(cr.schema_name || '.' || cr.table_name, 'N/A')
+        COALESCE(cr.schema_name || '.' || cr.table_name, 'N/A'),
+        COALESCE(r.bucket_column, 'bucket'),
+        r.depends_on,
+        COALESCE(r.export_enabled, FALSE)
     FROM lakets._rollup_registry r
     LEFT JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
     ORDER BY r.name;
@@ -362,11 +402,20 @@ BEGIN
         RAISE EXCEPTION 'Invalidation requires refresh_mode = incremental (current: %)', v_mode;
     END IF;
 
-    -- Create trigger (idempotent — same trigger name handles all RollUps on this table)
+    -- Per-row trigger for UPDATE/DELETE (existing behavior)
     EXECUTE format(
         'CREATE OR REPLACE TRIGGER trg_lakets_rollup_invalidation '
-        'AFTER INSERT OR UPDATE OR DELETE ON %I.%I '
+        'AFTER UPDATE OR DELETE ON %I.%I '
         'FOR EACH ROW EXECUTE FUNCTION lakets._rollup_invalidation_trigger_fn()',
+        v_schema, v_table
+    );
+
+    -- Statement-level trigger for INSERT (M27: handles COPY + multi-row INSERT)
+    EXECUTE format(
+        'CREATE OR REPLACE TRIGGER trg_lakets_rollup_bulk_invalidation '
+        'AFTER INSERT ON %I.%I '
+        'REFERENCING NEW TABLE AS _new_rows '
+        'FOR EACH STATEMENT EXECUTE FUNCTION lakets._bulk_import_invalidation()',
         v_schema, v_table
     );
 END;
@@ -412,6 +461,11 @@ BEGIN
             'DROP TRIGGER IF EXISTS trg_lakets_rollup_invalidation ON %I.%I',
             v_schema, v_table
         );
+        -- Also drop statement-level trigger (M27)
+        EXECUTE format(
+            'DROP TRIGGER IF EXISTS trg_lakets_rollup_bulk_invalidation ON %I.%I',
+            v_schema, v_table
+        );
     END IF;
 END;
 $$;
@@ -424,7 +478,7 @@ CREATE OR REPLACE FUNCTION lakets.invalidate_rollup_range(
     p_name TEXT,
     p_from TIMESTAMPTZ,
     p_to   TIMESTAMPTZ,
-    p_tier TEXT DEFAULT 'hot'
+    p_tier TEXT DEFAULT NULL  -- NULL = auto-detect from chunk metadata (M26)
 )
 RETURNS INT
 LANGUAGE plpgsql
@@ -432,10 +486,12 @@ AS $$
 DECLARE
     v_rec RECORD;
     v_bucket TIMESTAMPTZ;
+    v_tier TEXT;
     v_count INT := 0;
 BEGIN
-    SELECT id, bucket_interval INTO v_rec
-    FROM lakets._rollup_registry WHERE name = p_name;
+    SELECT r.id, r.bucket_interval, r.source_chronotable_id
+    INTO v_rec
+    FROM lakets._rollup_registry r WHERE r.name = p_name;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'RollUp % not found', p_name;
@@ -449,10 +505,20 @@ BEGIN
             v_rec.bucket_interval
         )
     LOOP
+        -- Auto-detect tier if not specified (M26)
+        IF p_tier IS NULL THEN
+            v_tier := COALESCE(
+                lakets._resolve_bucket_tier(v_rec.source_chronotable_id, v_bucket),
+                'hot'
+            );
+        ELSE
+            v_tier := p_tier;
+        END IF;
+
         INSERT INTO lakets._rollup_invalidation_log (rollup_id, bucket_start, tier)
-        VALUES (v_rec.id, v_bucket, p_tier)
+        VALUES (v_rec.id, v_bucket, v_tier)
         ON CONFLICT (rollup_id, bucket_start) DO UPDATE
-            SET invalidated_at = now(), tier = p_tier;
+            SET invalidated_at = now(), tier = v_tier;
         v_count := v_count + 1;
     END LOOP;
 

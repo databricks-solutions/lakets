@@ -1,6 +1,6 @@
 # Getting Started with LakeTS
 
-LakeTS is an open-source time series toolkit for Databricks Lakebase. It adds TimescaleDB-like capabilities (automatic partitioning, time series functions, incremental rollups, compression, retention) to Lakebase's native PostgreSQL.
+LakeTS is a time series toolkit for Databricks Lakebase. It adds automatic partitioning, time series functions, incremental rollups, compression, and retention to Lakebase's native PostgreSQL — all in pure SQL.
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ LakeTS is an open-source time series toolkit for Databricks Lakebase. It adds Ti
 Connect to your Lakebase instance and run the installer:
 
 ```bash
-psql -h <your-lakebase-host> -U <user>@databricks.com -d databricks_postgres -f lakets/sql/99_install.sql
+psql -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f lakets/sql/99_install.sql
 ```
 
 Or execute each file in order:
@@ -37,7 +37,7 @@ SELECT count(*) FROM information_schema.routines WHERE routine_schema = 'lakets'
 
 ## 2. Create Your First ChronoTable
 
-A **ChronoTable** is a time-partitioned table — LakeTS's core abstraction (equivalent to TimescaleDB's hypertable, renamed for LakeTS).
+A **ChronoTable** is a time-partitioned table — LakeTS's core abstraction for time series data.
 
 **Option A: Single-metric table** (simple):
 ```sql
@@ -176,7 +176,56 @@ SELECT lakets.refresh_rollup('metrics_hourly');
 SELECT lakets.enable_rollup_invalidation('metrics_hourly');
 ```
 
-## 5. Configure Data Lifecycle
+## 5. RollUp Dependencies (DAG Cascade)
+
+Build hierarchical RollUps that refresh in the correct order:
+
+```sql
+-- Create a daily RollUp that depends on the hourly one
+SELECT lakets.create_rollup(
+    'metrics_daily',
+    $$SELECT lakets.time_bucket('1 day'::interval, bucket) AS bucket,
+             sum(cnt) AS cnt,
+             round(avg(avg_cpu)::numeric, 2) AS avg_cpu,
+             round(avg(avg_mem)::numeric, 2) AS avg_mem
+      FROM _rollup_metrics_hourly GROUP BY 1$$,
+    '1 day',
+    'metrics',
+    p_depends_on := ARRAY['metrics_hourly']
+);
+
+-- Refresh all dependencies in topological order
+SELECT * FROM lakets.refresh_rollup_cascade('metrics_daily');
+-- rollup_name      | refreshed | refresh_ms
+-- metrics_hourly   | true      | 12.5
+-- metrics_daily    | true      | 8.3
+
+-- View the dependency graph
+SELECT * FROM lakets.show_rollup_dag();
+```
+
+## 6. Export RollUps to Delta Lake
+
+Make RollUp Tables available to Spark, ML pipelines, and BI tools:
+
+```sql
+-- Enable export to Delta
+SELECT lakets.enable_rollup_export(
+    'metrics_hourly',
+    'main.lakets_rollups.metrics_hourly',  -- Delta table path
+    'incremental'                           -- 'full' or 'incremental'
+);
+
+-- Check export status
+SELECT * FROM lakets.show_rollup_exports();
+
+-- Disable export
+SELECT lakets.disable_rollup_export('metrics_hourly');
+```
+
+The actual export is performed by the `rollup_export.py` Databricks Job, which reads export-enabled RollUps and writes to Delta.
+
+## 7. Configure Data Lifecycle
 
 **Compression** (tier old data to Delta Lake):
 ```sql
@@ -193,7 +242,7 @@ SELECT lakets.add_retention_policy('metrics', '30 days');
 SELECT lakets.add_tiered_retention_policy('metrics', '7 days', '90 days');
 ```
 
-## 6. Monitor Your System
+## 8. Monitor Your System
 
 ```sql
 -- All operational metrics
@@ -206,7 +255,7 @@ SELECT * FROM lakets.chunk_health();
 SELECT * FROM lakets.query_stats(10);
 ```
 
-## 7. Last Value Cache (Sub-10ms Latest State)
+## 9. Last Value Cache (Sub-10ms Latest State)
 
 Enable a trigger-maintained cache for instant "what's the current value?" queries:
 
@@ -230,7 +279,7 @@ SELECT * FROM _lvc_system_metrics;
 SELECT * FROM lakets.lvc_stats();
 ```
 
-## 8. Cardinality Management
+## 10. Cardinality Management
 
 Monitor tag cardinality to prevent label explosion:
 
@@ -247,7 +296,7 @@ SELECT * FROM lakets.cardinality_check('system_metrics', 10000);
 -- OK     | 750                  | 10000
 ```
 
-## 9. Alert Rules (Hot Data)
+## 11. Alert Rules (Hot Data)
 
 SQL-native alerting on recent data:
 
@@ -268,7 +317,7 @@ SELECT * FROM lakets.alert_deadman(
 );
 ```
 
-## 10. Bulk Ingest
+## 12. Bulk Ingest
 
 Insert data in batches from edge devices or protocol adapters:
 
@@ -279,7 +328,7 @@ SELECT lakets.ingest_batch('system_metrics', '[
 ]'::JSONB);
 ```
 
-## 11. Downsampling Pipeline (Metadata)
+## 13. Downsampling Pipeline (Metadata)
 
 Register multi-resolution rollup pipelines (executed by Databricks Jobs):
 
@@ -296,7 +345,7 @@ SELECT lakets.create_downsample_pipeline(
 SELECT * FROM lakets.query_auto_resolution('metrics_rollups', now() - '30 days');
 ```
 
-## 12. Enable Lakehouse Sync (Optional)
+## 14. Enable Lakehouse Sync (Optional)
 
 Sync data to Delta Lake via CDC for analytics:
 ```sql
@@ -308,6 +357,5 @@ See [lakehouse_sync_setup.md](lakehouse_sync_setup.md) for full setup instructio
 ## Next Steps
 
 - [API Reference](api_reference.md) - Complete function documentation
-- [Migration from TimescaleDB](migration_from_timescaledb.md) - Switching from TimescaleDB
 - [Lakehouse Sync Setup](lakehouse_sync_setup.md) - Delta Lake integration
 - Deploy [Databricks Workflows](../databricks/bundles/databricks.yml) for automated partition management, compression, retention, and aggregate refresh

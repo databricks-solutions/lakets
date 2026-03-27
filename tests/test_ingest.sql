@@ -46,6 +46,36 @@ DO $$ DECLARE v DOUBLE PRECISION; BEGIN
     ASSERT v = 77.7; RAISE NOTICE 'T4 PASSED: batch data queryable, cpu=%', v;
 END $$;
 
+-- T5: ingest_batch with NULL values
+DO $$ DECLARE v INT; v_cpu DOUBLE PRECISION; BEGIN
+    SELECT lakets.ingest_batch('ing_test', '[
+        {"time": "2026-03-25T18:00:00Z", "host": "null-test", "cpu": null}
+    ]'::JSONB) INTO v;
+    ASSERT v = 1, format('expected 1 row inserted, got %s', v);
+
+    SELECT cpu INTO v_cpu FROM ing_test WHERE host = 'null-test';
+    ASSERT v_cpu IS NULL, 'expected NULL cpu value';
+    RAISE NOTICE 'T5 PASSED: ingest_batch with NULL values, inserted=%', v;
+END $$;
+
+-- T6: ingest_batch with empty array returns 0
+DO $$ DECLARE v INT; BEGIN
+    SELECT lakets.ingest_batch('ing_test', '[]'::JSONB) INTO v;
+    ASSERT v = 0, format('expected 0, got %s', v);
+    RAISE NOTICE 'T6 PASSED: empty batch returns 0';
+END $$;
+
+-- T7: ingest_batch with numeric JSON types
+DO $$ DECLARE v INT; v_cpu DOUBLE PRECISION; BEGIN
+    SELECT lakets.ingest_batch('ing_test', '[
+        {"time": "2026-03-25T19:00:00Z", "host": "numeric-test", "cpu": 88.8}
+    ]'::JSONB) INTO v;
+    ASSERT v = 1;
+    SELECT cpu INTO v_cpu FROM ing_test WHERE host = 'numeric-test';
+    ASSERT abs(v_cpu - 88.8) < 0.01, format('expected 88.8, got %s', v_cpu);
+    RAISE NOTICE 'T7 PASSED: numeric JSON type handled, cpu=%', v_cpu;
+END $$;
+
 DROP TABLE IF EXISTS public.ing_test CASCADE;
 DELETE FROM lakets._chunk_metadata WHERE chronotable_id IN (SELECT id FROM lakets._chronotable_registry WHERE table_name='ing_test');
 DELETE FROM lakets._chronotable_registry WHERE table_name='ing_test';

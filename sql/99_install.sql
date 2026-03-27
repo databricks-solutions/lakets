@@ -3,10 +3,13 @@
 -- Run this file to install the complete LakeTS toolkit on a Lakebase instance.
 --
 -- Usage:
---   psql -h <host> -U <user> -d databricks_postgres -f 99_install.sql
+--   psql -h <host> -U <user> -d <database> -f 99_install.sql
 --
 -- Or execute each file in order via your preferred SQL client.
 -- =============================================================================
+
+-- Step 0: Version tracking and upgrade guard
+\ir 00_version.sql
 
 -- Step 1: Core schema and metadata tables
 \ir 00_schema.sql
@@ -46,6 +49,9 @@
 
 -- Step 13: Shadow sync for Lakehouse Sync
 \ir 07_shadow_sync.sql
+
+-- Step 14: RollUp Optimization — Modules 23–28
+\ir 13_rollup_optimization.sql
 
 -- Verify installation
 DO $$

@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate tag matches VERSION file
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          FILE_VERSION="$(tr -d '[:space:]' < VERSION)"
+          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+            echo "ERROR: Tag version ($TAG_VERSION) does not match VERSION file ($FILE_VERSION)"
+            exit 1
+          fi
+          echo "VERSION=$FILE_VERSION" >> "$GITHUB_ENV"
+
+      - name: Build distribution
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum lakets.sql > lakets.sql.sha256
+          cat lakets.sql.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: LakeTS v${{ env.VERSION }}
+          body: |
+            ## LakeTS v${{ env.VERSION }}
+
+            ### Install on Lakebase
+
+            ```bash
+            # Download
+            curl -LO https://github.com/${{ github.repository }}/releases/download/v${{ env.VERSION }}/lakets.sql
+
+            # Verify checksum
+            curl -LO https://github.com/${{ github.repository }}/releases/download/v${{ env.VERSION }}/lakets.sql.sha256
+            sha256sum -c lakets.sql.sha256
+
+            # Install
+            psql -h <host> -U <user> -d <database> -f lakets.sql
+            ```
+
+            ### Install via psycopg2
+
+            ```python
+            import psycopg2
+            conn = psycopg2.connect(host="<host>", user="<user>", dbname="<database>", password="<token>", sslmode="require")
+            conn.autocommit = True
+            with open('lakets.sql') as f:
+                conn.cursor().execute(f.read())
+            ```
+
+            ### Check installed version
+
+            ```sql
+            SELECT version, installed_at FROM lakets._version ORDER BY installed_at DESC LIMIT 1;
+            ```
+          files: |
+            dist/lakets.sql
+            dist/lakets.sql.sha256
+          fail_on_unmatched_files: true
+          generate_release_notes: true

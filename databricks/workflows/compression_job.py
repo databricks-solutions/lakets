@@ -93,8 +93,9 @@ def run(instance_name: str, catalog: str, schema: str = "default", drop_partitio
 
 
 if __name__ == "__main__":
+    import os
     import sys
 
-    instance = sys.argv[1] if len(sys.argv) > 1 else "lakets-timeseries"
+    instance = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_INSTANCE"]
     cat = sys.argv[2] if len(sys.argv) > 2 else "main"
     run(instance, cat)

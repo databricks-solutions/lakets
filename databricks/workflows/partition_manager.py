@@ -43,7 +43,8 @@ def run(instance_name: str):
 
 
 if __name__ == "__main__":
+    import os
     import sys
 
-    instance = sys.argv[1] if len(sys.argv) > 1 else "lakets-timeseries"
+    instance = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_INSTANCE"]
     run(instance)

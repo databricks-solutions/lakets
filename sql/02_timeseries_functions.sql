@@ -55,7 +55,20 @@ $$;
 -- first: Aggregate that returns the value associated with the earliest time.
 -- ---------------------------------------------------------------------------
 
--- State type for first/last aggregates
+-- State type for first/last aggregates (idempotent: drop + recreate)
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON t.typnamespace = n.oid
+               WHERE n.nspname = 'lakets' AND t.typname = '_first_last_state') THEN
+        -- Drop dependents first, they'll be recreated below
+        DROP AGGREGATE IF EXISTS lakets.first(DOUBLE PRECISION, TIMESTAMPTZ);
+        DROP AGGREGATE IF EXISTS lakets.last(DOUBLE PRECISION, TIMESTAMPTZ);
+        DROP FUNCTION IF EXISTS lakets._first_ffunc(lakets._first_last_state);
+        DROP FUNCTION IF EXISTS lakets._last_ffunc(lakets._first_last_state);
+        DROP FUNCTION IF EXISTS lakets._first_sfunc(lakets._first_last_state, DOUBLE PRECISION, TIMESTAMPTZ);
+        DROP FUNCTION IF EXISTS lakets._last_sfunc(lakets._first_last_state, DOUBLE PRECISION, TIMESTAMPTZ);
+        DROP TYPE lakets._first_last_state;
+    END IF;
+END $$;
 CREATE TYPE lakets._first_last_state AS (
     value DOUBLE PRECISION,
     ts TIMESTAMPTZ

@@ -174,15 +174,16 @@ Creates a RollUp Table with initial full load and unique index.
 ```sql
 lakets.create_rollup(
     p_name            TEXT,
-    p_query           TEXT,     -- SELECT with GROUP BY (first column MUST be aliased 'bucket')
+    p_query           TEXT,     -- SELECT with GROUP BY (bucket column auto-detected)
     p_bucket_interval INTERVAL DEFAULT '1 hour',
     p_source_table    TEXT DEFAULT NULL,
     p_source_schema   TEXT DEFAULT 'public',
-    p_refresh_mode    TEXT DEFAULT 'incremental'  -- 'incremental' or 'full'
+    p_refresh_mode    TEXT DEFAULT 'incremental',  -- 'incremental' or 'full'
+    p_depends_on      TEXT[] DEFAULT '{}'           -- names of prerequisite RollUps (M25)
 ) RETURNS INT  -- RollUp ID
 ```
 
-Creates `_rollup_<name>` table in `public` schema. Builds unique index on all columns. Registers with watermark = `max(bucket)`.
+Creates `_rollup_<name>` table in `public` schema. Auto-detects the bucket column via `_detect_bucket_column()` (M27). Builds unique index on all columns. Resolves `p_depends_on` names to IDs for DAG orchestration. Registers with watermark = `max(bucket)`.
 
 ### `lakets.refresh_rollup`
 Incremental or full refresh. Returns TRUE if refreshed, FALSE if skipped due to `refresh_lag`.
@@ -217,7 +218,8 @@ Lists all RollUps with status.
 lakets.show_rollups() RETURNS TABLE (
     name TEXT, rollup_table TEXT, realtime_view TEXT,
     bucket_interval INTERVAL, refresh_mode TEXT, refresh_lag INTERVAL,
-    watermark TIMESTAMPTZ, last_refreshed_at TIMESTAMPTZ, source_table TEXT
+    watermark TIMESTAMPTZ, last_refreshed_at TIMESTAMPTZ, source_table TEXT,
+    bucket_column TEXT, depends_on INT[], export_enabled BOOLEAN
 )
 ```
 
@@ -229,13 +231,17 @@ lakets._rollup_watermark(p_name TEXT) RETURNS TIMESTAMPTZ
 ```
 
 ### `lakets.enable_rollup_invalidation`
-Installs a per-row trigger on the source ChronoTable for mutation tracking (opt-in).
+Installs invalidation triggers on the source ChronoTable for mutation tracking (opt-in).
 
 ```sql
 lakets.enable_rollup_invalidation(p_rollup_name TEXT) RETURNS VOID
 ```
 
-One trigger per source table handles all RollUps. Idempotent.
+Installs two triggers per source table:
+- **Per-row** (`AFTER UPDATE OR DELETE`): Tracks individual mutations via `_rollup_invalidation_trigger_fn()`
+- **Statement-level** (`AFTER INSERT REFERENCING NEW TABLE`): Catches bulk imports (COPY FROM, multi-row INSERT) via `_bulk_import_invalidation()` (M27)
+
+One trigger pair per source table handles all RollUps. Idempotent.
 
 ### `lakets.disable_rollup_invalidation`
 Removes the invalidation trigger (if no other RollUps need it) and clears log entries.
@@ -252,11 +258,62 @@ lakets.invalidate_rollup_range(
     p_name TEXT,
     p_from TIMESTAMPTZ,
     p_to   TIMESTAMPTZ,
-    p_tier TEXT DEFAULT 'hot'  -- 'hot' or 'cold'
+    p_tier TEXT DEFAULT NULL  -- NULL = auto-detect from chunk metadata (M26)
 ) RETURNS INT  -- number of buckets invalidated
 ```
 
-Use after bulk `COPY` imports (which bypass triggers) or after correcting cold-tier data in Delta Lake.
+When `p_tier` is `NULL` (default), automatically resolves hot/cold tier by checking `_chunk_metadata.status` for each bucket via `_resolve_bucket_tier()` (M26). Use after bulk `COPY` imports or after correcting cold-tier data in Delta Lake.
+
+---
+
+## RollUp Optimization (Modules 23–28)
+
+### `lakets.refresh_rollup_cascade`
+Refreshes all RollUps in dependency order (topological sort). If `p_name` is provided, refreshes that RollUp and all its transitive dependencies. If `NULL`, refreshes all RollUps.
+
+```sql
+lakets.refresh_rollup_cascade(
+    p_name TEXT DEFAULT NULL
+) RETURNS TABLE (rollup_name TEXT, refreshed BOOLEAN, refresh_ms FLOAT)
+```
+
+### `lakets.show_rollup_dag`
+Human-readable DAG visualization showing refresh order and dependencies.
+
+```sql
+lakets.show_rollup_dag() RETURNS TABLE (
+    rollup_name TEXT, depends_on_names TEXT[], refresh_order INT,
+    bucket_interval INTERVAL, last_refreshed TIMESTAMPTZ
+)
+```
+
+### `lakets.enable_rollup_export`
+Enables periodic export of RollUp Table rows to Delta Lake.
+
+```sql
+lakets.enable_rollup_export(
+    p_rollup_name TEXT,
+    p_delta_table TEXT,         -- e.g., 'main.lakets_rollups.metrics_hourly'
+    p_export_mode TEXT DEFAULT 'incremental'  -- 'full' or 'incremental'
+) RETURNS VOID
+```
+
+### `lakets.disable_rollup_export`
+Disables RollUp export.
+
+```sql
+lakets.disable_rollup_export(p_rollup_name TEXT) RETURNS VOID
+```
+
+### `lakets.show_rollup_exports`
+Shows export status and lag for all export-enabled RollUps.
+
+```sql
+lakets.show_rollup_exports() RETURNS TABLE (
+    rollup_name TEXT, delta_table TEXT, export_mode TEXT,
+    last_exported_at TIMESTAMPTZ, watermark TIMESTAMPTZ, export_lag INTERVAL
+)
+```
 
 ---
 

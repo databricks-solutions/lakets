@@ -15,7 +15,7 @@ A deep dive into how LakeTS turns Databricks Lakebase into a full-featured time 
 7. [How Retention Works](#7-how-retention-works)
 8. [How Lakehouse Sync Works](#8-how-lakehouse-sync-works)
 9. [Life of a Data Point](#9-life-of-a-data-point-end-to-end)
-10. [What Makes This Different from TimescaleDB](#10-what-makes-this-different-from-timescaledb)
+10. [How RollUp Optimization Works (Modules 23–28)](#10-how-rollup-optimization-works-modules-2328)
 
 ---
 
@@ -30,7 +30,7 @@ Plain PostgreSQL struggles with this because:
 - **No easy way to archive old data** without manual partition management
 - **Common patterns** like "average temperature per hour with gap-filling" require complex SQL
 
-Time series databases like TimescaleDB solve this by adding a layer on top of Postgres. LakeTS does the same thing — but for Databricks Lakebase, with the added benefit of tiering cold data to Delta Lake.
+LakeTS solves this by adding a time series layer on top of Postgres — purpose-built for Databricks Lakebase, with the added benefit of tiering cold data to Delta Lake.
 
 ---
 
@@ -555,32 +555,255 @@ gantt
 
 ---
 
-## 10. What Makes This Different from TimescaleDB
+## 10. How RollUp Optimization Works (Modules 23–28)
 
-| Aspect | TimescaleDB | LakeTS |
-|--------|-------------|--------|
-| **Runs on** | Any Postgres | Databricks Lakebase |
-| **Partitioning** | Custom "hypertable" engine (C extension) | ChronoTables: Native Postgres RANGE partitioning |
-| **Time Series Functions** | C-optimized native functions | PL/pgSQL functions (slightly slower, but zero extension install) |
-| **Compression** | In-place columnar (row -> columnar in same DB) | Tier to Delta Lake (Parquet — better compression, separate storage) |
-| **Cold storage** | S3 tiering (Timescale Cloud only) | Delta Lake with ACID, time travel, Unity Catalog governance |
-| **Analytics on cold data** | Limited (decompress to query) | Photon engine, Spark, SQL Analytics (native Delta Lake) |
-| **Pre-computed aggregates** | WAL-based invalidation tracking (refresh only changed buckets) | RollUps: incremental per-bucket DELETE+INSERT with invalidation log |
-| **Gap-filling** | Integrated in GROUP BY (`time_bucket_gapfill + locf`) | LEFT JOIN pattern (more explicit, equally powerful) |
-| **AI/ML integration** | None | Native: MLflow, Feature Store, Vector Search, LLMs |
-| **Cost model** | Per-node licensing | Serverless, scale-to-zero, pay-per-query |
+The base RollUp Engine handles the core refresh loop, but at scale several limitations emerge:
 
-### Where LakeTS Wins
-- **No extension installation** — pure SQL, works on any Lakebase instance
-- **Delta Lake integration** — cold data gets ACID guarantees, time travel, Unity Catalog governance
-- **Databricks ecosystem** — ML, notebooks, dashboards, jobs all native
-- **Cost** — scale-to-zero, no idle compute charges
+- Full table scans even when only a few chunks changed
+- Sequential per-bucket DELETE+INSERT loops (2N statements for N dirty buckets)
+- No dependency ordering between hierarchical RollUps
+- Manual tier specification for invalidation
+- No way to capture COPY FROM bulk imports
+- No export path from RollUp Tables to Delta Lake
 
-### Where TimescaleDB Wins
-- **Raw performance** — C-native functions are faster than PL/pgSQL
-- **WAL-based invalidation** — tracks changes at the WAL level (LakeTS uses trigger-based invalidation)
-- **Mature ecosystem** — years of optimization, larger community
-- **In-place compression** — no need for separate cold storage
+Modules 23–28 address all of these.
+
+### Architecture Overview
+
+```mermaid
+flowchart TB
+    subgraph M23["M23: Smart Refresh Optimizer"]
+        CS["Chunk-Skip Pruning<br/>skip unchanged partitions"]
+        PI["Predicate Injection<br/>push time filter into source scan"]
+    end
+
+    subgraph M24["M24: Batch Bucket Refresh"]
+        BB["Batch Set-Based<br/>1 DELETE + 1 INSERT<br/>using ANY(array)"]
+    end
+
+    subgraph M25["M25: DAG Orchestrator"]
+        DAG["Topological Sort<br/>(Kahn's Algorithm)"]
+        CASCADE["refresh_rollup_cascade()<br/>dependency-ordered refresh"]
+    end
+
+    subgraph M26["M26: Tier Router"]
+        TR["Auto-detect hot/cold<br/>from chunk_metadata.status"]
+    end
+
+    subgraph M27["M27: Bulk Import Invalidation"]
+        BII["Statement-level trigger<br/>REFERENCING NEW TABLE<br/>catches COPY FROM"]
+    end
+
+    subgraph M28["M28: RollUp Export"]
+        EXP["Export RollUp rows<br/>to Delta Lake<br/>full or incremental"]
+    end
+
+    M23 --> |"feeds into"| M24
+    M24 --> |"used by"| M25
+    M26 --> |"used by"| M24
+    M27 --> |"creates entries for"| M24
+
+    style M23 fill:#3498DB,color:#fff
+    style M24 fill:#2ECC71,color:#fff
+    style M25 fill:#E67E22,color:#fff
+    style M26 fill:#9B59B6,color:#fff
+    style M27 fill:#E74C3C,color:#fff
+    style M28 fill:#1ABC9C,color:#fff
+```
+
+### M23: Smart Refresh Optimizer — "Only scan what changed"
+
+**Problem**: `refresh_rollup()` runs the full source query every time, even if only one chunk received writes.
+
+**Solution**: Two optimizations that work together:
+
+1. **Chunk-Skip Pruning**: Track `last_modified_at` on each chunk. Before refresh, call `_get_dirty_chunks()` to find only the chunks that changed since the last refresh.
+
+2. **Predicate Injection**: Rewrite the inner source query to add a `WHERE time >= dirty_from` clause, enabling Postgres partition pruning at the scan level.
+
+```
+Before (no optimization):
+  refresh_rollup('metrics_hourly')
+    -> SELECT ... FROM metrics GROUP BY 1  -- scans ALL partitions
+    -> 500ms for 100M rows
+
+After (M23 enabled):
+  refresh_rollup('metrics_hourly')
+    -> _get_dirty_chunks() -> only 2 of 30 chunks modified
+    -> _inject_time_predicate() -> adds WHERE time >= '2026-03-25'
+    -> SELECT ... FROM metrics WHERE time >= '2026-03-25' GROUP BY 1
+    -> 15ms (only scans 2 partitions)
+```
+
+The predicate injection validates the rewritten query with `EXPLAIN` and falls back to the original if injection fails (e.g., complex subqueries).
+
+### M24: Batch Bucket Refresh — "2 statements instead of 2N"
+
+**Problem**: The original Phase 2 (invalidation log processing) used a `FOR` loop: one DELETE + one INSERT per dirty bucket. With 50 dirty buckets, that's 100 SQL statements.
+
+**Solution**: Batch all dirty buckets into a single `ANY(array)` predicate:
+
+```sql
+-- Old approach: 2N statements (sequential loop)
+FOR each bucket IN dirty_buckets LOOP
+    DELETE FROM _rollup_hourly WHERE bucket = bucket_val;
+    INSERT INTO _rollup_hourly SELECT ... WHERE bucket = bucket_val;
+END LOOP;
+
+-- New approach: 2 statements (batch)
+DELETE FROM _rollup_hourly WHERE bucket = ANY(dirty_buckets_array);
+INSERT INTO _rollup_hourly SELECT * FROM (query) WHERE bucket = ANY(dirty_buckets_array);
+```
+
+For very large dirty sets (>100 buckets), `_refresh_buckets_chunked()` splits the array into smaller batches to avoid planner degradation.
+
+### M25: RollUp DAG Orchestrator — "Refresh in the right order"
+
+**Problem**: Hierarchical RollUps (e.g., hourly -> daily -> weekly) must refresh in dependency order. Without orchestration, a daily RollUp might read stale hourly data.
+
+**Solution**: `depends_on` column stores dependency IDs. `_build_rollup_dag()` performs topological sorting via Kahn's algorithm with cycle detection.
+
+```mermaid
+flowchart LR
+    RAW["Raw Data<br/>(metrics)"]
+    H["metrics_hourly<br/>(1h buckets)"]
+    D["metrics_daily<br/>(1d buckets)<br/>depends_on: [hourly]"]
+    W["metrics_weekly<br/>(7d buckets)<br/>depends_on: [daily]"]
+    A["alerts_hourly<br/>(1h buckets)<br/>depends_on: [hourly]"]
+
+    RAW --> H
+    H --> D
+    H --> A
+    D --> W
+
+    style RAW fill:#95A5A6,color:#fff
+    style H fill:#3498DB,color:#fff
+    style D fill:#2ECC71,color:#fff
+    style W fill:#E67E22,color:#fff
+    style A fill:#E74C3C,color:#fff
+```
+
+```sql
+-- Refresh all RollUps in dependency order
+SELECT * FROM lakets.refresh_rollup_cascade('metrics_weekly');
+-- Returns:
+-- rollup_name      | refreshed | refresh_ms
+-- metrics_hourly   | true      | 12.5
+-- metrics_daily    | true      | 8.3
+-- metrics_weekly   | true      | 5.1
+
+-- View the DAG
+SELECT * FROM lakets.show_rollup_dag();
+```
+
+### M26: Tier Router — "Auto-detect hot vs cold"
+
+**Problem**: `invalidate_rollup_range()` required manually specifying `tier = 'hot'` or `'cold'`. Users had to know which chunks were tiered.
+
+**Solution**: When `p_tier` is `NULL` (new default), `_resolve_bucket_tier()` checks `_chunk_metadata.status` for the chunk covering that time bucket:
+
+| Chunk Status | Resolved Tier | Meaning |
+|-------------|--------------|---------|
+| `active` | hot | Data in Lakebase |
+| `compressed` | hot | Data in Lakebase (compressed) |
+| `tiered` | cold | Data in Delta Lake |
+
+### M27: Bulk Import Invalidation — "Catch COPY FROM"
+
+**Problem**: PostgreSQL's `COPY FROM` and multi-row `INSERT INTO ... SELECT` bypass per-row triggers. Bulk-imported data wouldn't invalidate RollUp buckets.
+
+**Solution**: A **statement-level** `AFTER INSERT` trigger using `REFERENCING NEW TABLE AS _new_rows` — a PostgreSQL feature that captures all inserted rows as a transition table:
+
+```
+COPY metrics FROM 'sensor_data.csv';
+  -> 50,000 rows inserted
+  -> Statement-level trigger fires ONCE
+  -> SELECT min(time), max(time) FROM _new_rows
+  -> Calls invalidate_rollup_range(min_time, max_time)
+  -> All affected RollUp buckets marked dirty
+```
+
+This is installed alongside the existing per-row trigger: per-row handles UPDATE/DELETE, statement-level handles INSERT (including COPY).
+
+### M28: RollUp Export — "RollUp Tables in Delta Lake"
+
+**Problem**: RollUp Tables live in Lakebase. BI tools, Spark jobs, and ML pipelines need them in Delta Lake.
+
+**Solution**: `enable_rollup_export()` marks a RollUp for periodic export. The `rollup_export.py` Databricks job reads export-enabled RollUps and writes to Delta:
+
+```mermaid
+flowchart LR
+    subgraph LAKEBASE["Lakebase"]
+        RT["RollUp Table<br/>_rollup_metrics_hourly"]
+        REG["_rollup_registry<br/>export_enabled=TRUE"]
+    end
+
+    subgraph JOB["Databricks Job"]
+        EXP["rollup_export.py<br/>reads via psycopg2"]
+    end
+
+    subgraph DELTA["Delta Lake"]
+        DT["main.lakets_rollups.<br/>metrics_hourly"]
+    end
+
+    RT --> EXP
+    REG --> EXP
+    EXP --> DT
+
+    style LAKEBASE fill:#2ECC71,color:#fff
+    style JOB fill:#E67E22,color:#fff
+    style DELTA fill:#9B59B6,color:#fff
+```
+
+Two export modes:
+- **full**: `OVERWRITE` the Delta table each run
+- **incremental**: `APPEND` only rows newer than `last_exported_at`
+
+### How refresh_rollup() Works After Optimization
+
+```mermaid
+flowchart TB
+    START["refresh_rollup('metrics_hourly')"]
+    LAG{"Refresh lag<br/>elapsed?"}
+    SKIP["Return FALSE<br/>(skipped)"]
+    MODE{"refresh_mode?"}
+
+    FULL["TRUNCATE + INSERT<br/>(full rebuild)"]
+
+    P1["Phase 1: Watermark Refresh"]
+    PRED{"predicate_injection<br/>enabled?"}
+    INJ["_inject_time_predicate()<br/>add WHERE time >= dirty_from"]
+    NOINJ["Use original query"]
+    DEL1["DELETE WHERE bucket >= dirty_from"]
+    INS1["INSERT ... WHERE bucket >= dirty_from"]
+
+    P2["Phase 2: Invalidation Log"]
+    DIRTY{"Hot-tier dirty<br/>buckets?"}
+    BATCH["_refresh_buckets_chunked()<br/>2 statements per chunk"]
+    CLEAR["Clear invalidation log"]
+
+    WM["Advance watermark"]
+    DONE["Return TRUE"]
+
+    START --> LAG
+    LAG -- No --> SKIP
+    LAG -- Yes --> MODE
+    MODE -- full --> FULL --> WM
+    MODE -- incremental --> P1
+    P1 --> PRED
+    PRED -- Yes --> INJ --> DEL1
+    PRED -- No --> NOINJ --> DEL1
+    DEL1 --> INS1 --> P2
+    P2 --> DIRTY
+    DIRTY -- Yes --> BATCH --> CLEAR
+    DIRTY -- No --> CLEAR
+    CLEAR --> WM --> DONE
+
+    style START fill:#3498DB,color:#fff
+    style DONE fill:#2ECC71,color:#fff
+    style BATCH fill:#E67E22,color:#fff
+    style INJ fill:#9B59B6,color:#fff
+```
 
 ---
 
@@ -594,6 +817,7 @@ LakeTS is built from these Postgres primitives:
 | Time Series Functions | `PL/pgSQL` functions + `CREATE AGGREGATE` |
 | Gap-filling | `generate_series()` + `LEFT JOIN` |
 | RollUps | Regular `TABLE` + incremental refresh + `UNION ALL` view |
+| RollUp Optimization | Chunk-skip pruning, batch `ANY(array)`, Kahn's toposort, transition tables |
 | Compression/Tiering | `_policy_registry` + Databricks Jobs |
 | Retention | `DROP TABLE` on expired partitions |
 | Lakehouse Sync | Shadow table + trigger + `wal2delta` CDC |
