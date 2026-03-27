@@ -16,8 +16,7 @@ DELETE FROM lakets._chunk_metadata WHERE chronotable_id IN (
 DELETE FROM lakets._chronotable_registry WHERE table_name = 'ru_test';
 
 -- Create test ChronoTable with sample data
-SELECT lakets.create_chronotable('ru_test', 'time', '1 day');
-
+CREATE TABLE public.ru_test (time TIMESTAMPTZ NOT NULL, val DOUBLE PRECISION);
 INSERT INTO ru_test (time, val)
 SELECT ts, (extract(epoch FROM ts) % 100)::DOUBLE PRECISION
 FROM generate_series(
@@ -25,6 +24,7 @@ FROM generate_series(
     now() - INTERVAL '1 hour',
     '10 minutes'
 ) ts;
+SELECT lakets.create_chronotable('ru_test', 'time', '1 day');
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- T1: create_rollup returns a non-null ID

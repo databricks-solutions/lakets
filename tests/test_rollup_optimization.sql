@@ -21,8 +21,7 @@ DELETE FROM lakets._chunk_metadata WHERE chronotable_id IN (
 DELETE FROM lakets._chronotable_registry WHERE table_name = 'opt_test';
 
 -- Create test ChronoTable with 7 days of data
-SELECT lakets.create_chronotable('opt_test', 'time', '1 day');
-
+CREATE TABLE public.opt_test (time TIMESTAMPTZ NOT NULL, val DOUBLE PRECISION);
 INSERT INTO opt_test (time, val)
 SELECT ts, (extract(epoch FROM ts) % 100)::DOUBLE PRECISION
 FROM generate_series(
@@ -30,6 +29,7 @@ FROM generate_series(
     now() - INTERVAL '1 hour',
     '5 minutes'
 ) ts;
+SELECT lakets.create_chronotable('opt_test', 'time', '1 day');
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -50,11 +50,14 @@ END $$;
 DO $$ DECLARE v_ct_id INT; v_count INT; v_total INT; BEGIN
     SELECT id INTO v_ct_id FROM lakets._chronotable_registry WHERE table_name = 'opt_test';
 
-    -- Mark one chunk as recently modified
+    -- Mark one chunk as recently modified (use ctid subquery for PG LIMIT)
     UPDATE lakets._chunk_metadata
     SET last_modified_at = now()
-    WHERE chronotable_id = v_ct_id AND status = 'active'
-    LIMIT 1;
+    WHERE ctid = (
+        SELECT ctid FROM lakets._chunk_metadata
+        WHERE chronotable_id = v_ct_id AND status = 'active'
+        LIMIT 1
+    );
 
     SELECT count(*) INTO v_total FROM lakets._chunk_metadata
     WHERE chronotable_id = v_ct_id AND status = 'active';
@@ -395,16 +398,176 @@ DO $$ DECLARE v_count INT; BEGIN
 END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- T29: _refresh_buckets_batch returns 0 for NULL/empty array
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$ DECLARE v_id INT; v_refreshed INT; BEGIN
+    SELECT id INTO v_id FROM lakets._rollup_registry WHERE name = 'opt_1min';
+
+    SELECT lakets._refresh_buckets_batch(v_id, '_rollup_opt_1min',
+        $q$SELECT lakets.time_bucket('1 hour'::interval, time) AS bucket,
+                 count(*) AS cnt, round(avg(val)::numeric, 2) AS avg_val
+          FROM opt_test GROUP BY 1$q$,
+        'bucket', NULL
+    ) INTO v_refreshed;
+    ASSERT v_refreshed = 0, format('expected 0, got %s', v_refreshed);
+
+    SELECT lakets._refresh_buckets_batch(v_id, '_rollup_opt_1min',
+        $q$SELECT lakets.time_bucket('1 hour'::interval, time) AS bucket,
+                 count(*) AS cnt, round(avg(val)::numeric, 2) AS avg_val
+          FROM opt_test GROUP BY 1$q$,
+        'bucket', '{}'::timestamptz[]
+    ) INTO v_refreshed;
+    ASSERT v_refreshed = 0, format('expected 0, got %s', v_refreshed);
+
+    RAISE NOTICE 'T29 PASSED: _refresh_buckets_batch returns 0 for empty input';
+END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- T30: _detect_bucket_column falls back to 'bucket' on invalid query
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$ DECLARE v TEXT; BEGIN
+    SELECT lakets._detect_bucket_column('THIS IS NOT VALID SQL') INTO v;
+    ASSERT v = 'bucket', format('expected fallback to bucket, got %s', v);
+    RAISE NOTICE 'T30 PASSED: _detect_bucket_column falls back to bucket on invalid SQL';
+END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- T31: _validate_rollup_dependencies rejects self-dependency
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$ DECLARE v_id INT; BEGIN
+    SELECT id INTO v_id FROM lakets._rollup_registry WHERE name = 'opt_1min';
+    BEGIN
+        UPDATE lakets._rollup_registry SET depends_on = ARRAY[v_id] WHERE id = v_id;
+        ASSERT FALSE, 'expected exception for self-dependency';
+    EXCEPTION WHEN OTHERS THEN
+        ASSERT SQLERRM ~* 'itself', format('expected "itself" error, got: %s', SQLERRM);
+    END;
+    RAISE NOTICE 'T31 PASSED: self-dependency rejected';
+END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- T32: _validate_rollup_dependencies rejects nonexistent dependency
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$ DECLARE v_id INT; BEGIN
+    SELECT id INTO v_id FROM lakets._rollup_registry WHERE name = 'opt_1min';
+    BEGIN
+        UPDATE lakets._rollup_registry SET depends_on = ARRAY[99999] WHERE id = v_id;
+        ASSERT FALSE, 'expected exception for nonexistent dependency';
+    EXCEPTION WHEN OTHERS THEN
+        ASSERT SQLERRM ~* 'does not exist', format('expected "does not exist" error, got: %s', SQLERRM);
+    END;
+    RAISE NOTICE 'T32 PASSED: nonexistent dependency rejected';
+END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- T33: enable_rollup_export rejects invalid export_mode
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$ BEGIN
+    BEGIN
+        PERFORM lakets.enable_rollup_export('opt_1min', 'some.table', 'invalid_mode');
+        ASSERT FALSE, 'expected exception for invalid export_mode';
+    EXCEPTION WHEN OTHERS THEN
+        ASSERT SQLERRM ~* 'export_mode', format('expected export_mode error, got: %s', SQLERRM);
+    END;
+    RAISE NOTICE 'T33 PASSED: invalid export_mode rejected';
+END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- T34: _refresh_buckets_chunked returns 0 for empty input
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$ DECLARE v_id INT; v_refreshed INT; BEGIN
+    SELECT id INTO v_id FROM lakets._rollup_registry WHERE name = 'opt_1min';
+
+    SELECT lakets._refresh_buckets_chunked(v_id, '_rollup_opt_1min',
+        $q$SELECT lakets.time_bucket('1 hour'::interval, time) AS bucket,
+                 count(*) AS cnt, round(avg(val)::numeric, 2) AS avg_val
+          FROM opt_test GROUP BY 1$q$,
+        'bucket', '{}'::timestamptz[], 2
+    ) INTO v_refreshed;
+    ASSERT v_refreshed = 0, format('expected 0, got %s', v_refreshed);
+    RAISE NOTICE 'T34 PASSED: _refresh_buckets_chunked returns 0 for empty input';
+END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- T35: _inject_time_predicate with existing WHERE clause
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$ DECLARE v TEXT; BEGIN
+    SELECT lakets._inject_time_predicate(
+        $q$SELECT lakets.time_bucket('1 hour'::interval, time) AS bucket,
+                 count(*) AS cnt FROM opt_test WHERE val > 10 GROUP BY 1$q$,
+        'time',
+        now() - INTERVAL '1 day'
+    ) INTO v;
+    ASSERT v ~* 'WHERE.*time.*AND.*val', format('expected WHERE time AND val, got: %s', left(v, 200));
+    RAISE NOTICE 'T35 PASSED: _inject_time_predicate with existing WHERE clause';
+END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- T36: _inject_time_predicate with NULL time_column returns original
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$ DECLARE v TEXT; v_orig TEXT; BEGIN
+    v_orig := 'SELECT 1 FROM opt_test';
+    SELECT lakets._inject_time_predicate(v_orig, NULL, now()) INTO v;
+    ASSERT v = v_orig, 'expected original query returned for NULL time_column';
+    RAISE NOTICE 'T36 PASSED: NULL time_column returns original query';
+END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- T37: Multi-level DAG — 3-level chain (1min → 1hour → 1day)
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$
+DECLARE
+    v_id_day INT;
+    v_dag INT[];
+    v_min_id INT;
+    v_hour_id INT;
+    v_day_id INT;
+    v_pos_min INT;
+    v_pos_hour INT;
+    v_pos_day INT;
+BEGIN
+    -- Create a 3rd level: opt_1day depends on opt_1hour
+    SELECT lakets.create_rollup(
+        'opt_1day',
+        $q$SELECT lakets.time_bucket('7 days'::interval, bucket) AS bucket,
+                 sum(cnt) AS cnt, round(avg(avg_val)::numeric, 2) AS avg_val
+          FROM _rollup_opt_1hour GROUP BY 1$q$,
+        '7 days',
+        'opt_test',
+        'public',
+        'incremental',
+        ARRAY['opt_1hour']
+    ) INTO v_id_day;
+
+    v_dag := lakets._build_rollup_dag(ARRAY[v_id_day]);
+
+    SELECT id INTO v_min_id FROM lakets._rollup_registry WHERE name = 'opt_1min';
+    SELECT id INTO v_hour_id FROM lakets._rollup_registry WHERE name = 'opt_1hour';
+    v_day_id := v_id_day;
+
+    v_pos_min := array_position(v_dag, v_min_id);
+    v_pos_hour := array_position(v_dag, v_hour_id);
+    v_pos_day := array_position(v_dag, v_day_id);
+
+    ASSERT v_pos_min < v_pos_hour, format('min(pos %s) should < hour(pos %s)', v_pos_min, v_pos_hour);
+    ASSERT v_pos_hour < v_pos_day, format('hour(pos %s) should < day(pos %s)', v_pos_hour, v_pos_day);
+
+    RAISE NOTICE 'T37 PASSED: 3-level DAG order: min(%)→hour(%)→day(%)', v_pos_min, v_pos_hour, v_pos_day;
+END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- Cleanup
 -- ═══════════════════════════════════════════════════════════════════════════
+DROP VIEW IF EXISTS public._rollup_rt_opt_1day;
 DROP VIEW IF EXISTS public._rollup_rt_opt_1hour;
 DROP VIEW IF EXISTS public._rollup_rt_opt_1min;
+DROP TABLE IF EXISTS public._rollup_opt_1day;
 DROP TABLE IF EXISTS public._rollup_opt_1hour;
 DROP TABLE IF EXISTS public._rollup_opt_1min;
 DELETE FROM lakets._rollup_invalidation_log WHERE rollup_id IN (
-    SELECT id FROM lakets._rollup_registry WHERE name IN ('opt_1min', 'opt_1hour')
+    SELECT id FROM lakets._rollup_registry WHERE name IN ('opt_1min', 'opt_1hour', 'opt_1day')
 );
-DELETE FROM lakets._rollup_registry WHERE name IN ('opt_1min', 'opt_1hour');
+DELETE FROM lakets._rollup_registry WHERE name IN ('opt_1min', 'opt_1hour', 'opt_1day');
 DROP TABLE IF EXISTS public.opt_test CASCADE;
 DELETE FROM lakets._chunk_metadata WHERE chronotable_id IN (
     SELECT id FROM lakets._chronotable_registry WHERE table_name = 'opt_test'

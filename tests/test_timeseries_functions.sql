@@ -71,4 +71,75 @@ DO $$ BEGIN
     RAISE NOTICE 'T11 PASSED: histogram';
 END $$;
 
+-- T12: time_bucket with year boundaries (Dec → Jan)
+DO $$ DECLARE v TIMESTAMPTZ; BEGIN
+    SELECT lakets.time_bucket('1 month'::interval, '2026-01-15 10:00:00+00'::timestamptz) INTO v;
+    ASSERT v = '2026-01-01 00:00:00+00'::timestamptz;
+    RAISE NOTICE 'T12 PASSED: year boundary bucket=%', v;
+END $$;
+
+-- T13: time_bucket with custom origin
+DO $$ DECLARE v TIMESTAMPTZ; BEGIN
+    SELECT lakets.time_bucket('15 minutes'::interval, '2026-03-25 14:37:22+00'::timestamptz, '2026-03-25 00:05:00+00'::timestamptz) INTO v;
+    ASSERT v = '2026-03-25 14:35:00+00'::timestamptz;
+    RAISE NOTICE 'T13 PASSED: custom origin bucket=%', v;
+END $$;
+
+-- T14: interpolate returns NULL when prev_value is NULL
+DO $$ DECLARE v DOUBLE PRECISION; BEGIN
+    SELECT lakets.interpolate(NULL, NULL, 30.0,
+        '2026-01-01 10:00+00'::timestamptz, '2026-01-01 11:00+00'::timestamptz, '2026-01-01 12:00+00'::timestamptz) INTO v;
+    ASSERT v IS NULL, format('expected NULL, got %s', v);
+    RAISE NOTICE 'T14 PASSED: interpolate returns NULL for missing bound';
+END $$;
+
+-- T15: interpolate returns prev_value when timestamps equal
+DO $$ DECLARE v DOUBLE PRECISION; BEGIN
+    SELECT lakets.interpolate(NULL, 10.0, 30.0,
+        '2026-01-01 10:00+00'::timestamptz, '2026-01-01 10:30+00'::timestamptz, '2026-01-01 10:00+00'::timestamptz) INTO v;
+    ASSERT v = 10.0, format('expected 10.0, got %s', v);
+    RAISE NOTICE 'T15 PASSED: interpolate same timestamps returns prev_value=%', v;
+END $$;
+
+-- T16: rate returns NULL when timestamps equal
+DO $$ DECLARE v DOUBLE PRECISION; BEGIN
+    SELECT lakets.rate(200.0, 100.0, '2026-01-01 01:00+00'::timestamptz, '2026-01-01 01:00+00'::timestamptz) INTO v;
+    ASSERT v IS NULL, format('expected NULL, got %s', v);
+    RAISE NOTICE 'T16 PASSED: rate returns NULL for equal timestamps';
+END $$;
+
+-- T17: rate returns NULL when prev values are NULL
+DO $$ DECLARE v DOUBLE PRECISION; BEGIN
+    SELECT lakets.rate(200.0, NULL, '2026-01-01 01:00+00'::timestamptz, '2026-01-01 00:00+00'::timestamptz) INTO v;
+    ASSERT v IS NULL, format('expected NULL, got %s', v);
+    RAISE NOTICE 'T17 PASSED: rate returns NULL for NULL prev';
+END $$;
+
+-- T18: histogram boundary conditions
+DO $$ BEGIN
+    ASSERT lakets.histogram(0.0, 0.0, 100.0, 10) = 0, 'value=min should be bucket 0';
+    ASSERT lakets.histogram(100.0, 0.0, 100.0, 10) = 9, 'value=max should be last bucket';
+    ASSERT lakets.histogram(-5.0, 0.0, 100.0, 10) = 0, 'value<min should be bucket 0';
+    RAISE NOTICE 'T18 PASSED: histogram boundary conditions';
+END $$;
+
+-- T19: first/last with single row
+DO $$ DECLARE vf DOUBLE PRECISION; vl DOUBLE PRECISION; BEGIN
+    CREATE TEMPORARY TABLE IF NOT EXISTS _t19 (time TIMESTAMPTZ, v DOUBLE PRECISION);
+    TRUNCATE _t19;
+    INSERT INTO _t19 VALUES ('2026-01-01 10:00+00', 42.0);
+    SELECT lakets.first(v, time), lakets.last(v, time) INTO vf, vl FROM _t19;
+    ASSERT vf = 42.0 AND vl = 42.0, format('expected 42.0, got first=%s last=%s', vf, vl);
+    RAISE NOTICE 'T19 PASSED: single-row first=%, last=%', vf, vl;
+    DROP TABLE _t19;
+END $$;
+
+-- T20: time_bucket_gapfill with 1-bucket range
+DO $$ DECLARE v BIGINT; BEGIN
+    SELECT count(*) INTO v FROM lakets.time_bucket_gapfill(
+        '1 hour'::interval, '2026-03-25 10:00+00'::timestamptz, '2026-03-25 10:00+00'::timestamptz);
+    ASSERT v = 1, format('expected 1 bucket, got %s', v);
+    RAISE NOTICE 'T20 PASSED: gapfill single bucket, count=%', v;
+END $$;
+
 SELECT 'ALL TIMESERIES FUNCTION TESTS PASSED' as result;
