@@ -1,9 +1,8 @@
 -- =============================================================================
 -- LakeTS Core Schema
 -- Metadata tables for hypertable management, chunk tracking, and policies.
+-- Requires: 00_version.sql (creates the lakets schema)
 -- =============================================================================
-
-CREATE SCHEMA IF NOT EXISTS lakets;
 
 -- ---------------------------------------------------------------------------
 -- ChronoTable Registry: tracks all tables converted to time-partitioned tables

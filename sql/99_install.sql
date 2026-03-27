@@ -8,6 +8,9 @@
 -- Or execute each file in order via your preferred SQL client.
 -- =============================================================================
 
+-- Step 0: Version tracking and upgrade guard
+\ir 00_version.sql
+
 -- Step 1: Core schema and metadata tables
 \ir 00_schema.sql
 
