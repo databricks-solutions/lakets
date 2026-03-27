@@ -135,17 +135,18 @@ BEGIN
     v_predicate := format('%I >= %L', p_time_column, p_dirty_from);
 
     -- Strategy: append to existing WHERE or insert before GROUP BY
-    IF p_query_text ~* '\bWHERE\b' THEN
+    -- Note: PostgreSQL uses \y for word boundary (not \b which is backspace in POSIX regex)
+    IF p_query_text ~* '\yWHERE\y' THEN
         v_injected := regexp_replace(
             p_query_text,
-            '(\bWHERE\b\s+)',
+            '(\yWHERE\y\s+)',
             format('\1%s AND ', v_predicate),
             'i'
         );
-    ELSIF p_query_text ~* '\bGROUP\s+BY\b' THEN
+    ELSIF p_query_text ~* '\yGROUP\s+BY\y' THEN
         v_injected := regexp_replace(
             p_query_text,
-            '(\bGROUP\s+BY\b)',
+            '(\yGROUP\s+BY\y)',
             format('WHERE %s \1', v_predicate),
             'i'
         );
