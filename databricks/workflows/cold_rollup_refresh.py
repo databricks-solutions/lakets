@@ -13,10 +13,12 @@ M26 enhancements:
 Schedule: On-demand, or after cold-tier ETL corrections.
 """
 import logging
+import re
 import sys
 import time
 
 from databricks.sdk import WorkspaceClient
+from psycopg2 import sql
 
 from lakebase_utils import fetch_all, lakebase_cursor
 
@@ -70,11 +72,18 @@ def run(instance_name: str, catalog: str = "main", schema: str = "lakets_sync"):
 
         warehouse_id = _get_warehouse_id(w)
         refreshed = 0
+        failures = []
 
         for entry in cold_entries:
             delta_table = f"{catalog}.{schema}.{entry['source_table']}"
             dirty_buckets = entry["dirty_buckets"]
             bucket_col = entry.get("bucket_column", "bucket")
+
+            # Validate bucket_col is a safe identifier
+            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', bucket_col):
+                logger.error("Invalid bucket_column for %s: %r", entry["name"], bucket_col)
+                failures.append(entry["name"])
+                continue
 
             logger.info(
                 "Re-aggregating %s: %d cold buckets from %s",
@@ -85,12 +94,14 @@ def run(instance_name: str, catalog: str = "main", schema: str = "lakets_sync"):
             bucket_list = ", ".join(f"TIMESTAMP '{b}'" for b in dirty_buckets)
 
             try:
+                # Build statement via concatenation (bucket_col validated above)
+                cold_statement = (
+                    "SELECT * FROM (" + cold_query + ") _q "
+                    "WHERE _q." + bucket_col + " IN (" + bucket_list + ")"
+                )
                 result = w.statement_execution.execute_statement(
                     warehouse_id=warehouse_id,
-                    statement=(
-                        f"SELECT * FROM ({cold_query}) _q "
-                        f"WHERE _q.{bucket_col} IN ({bucket_list})"
-                    ),
+                    statement=cold_statement,
                     wait_timeout="120s",
                 )
 
@@ -98,22 +109,31 @@ def run(instance_name: str, catalog: str = "main", schema: str = "lakets_sync"):
                     columns = [col.name for col in result.manifest.schema.columns]
 
                     # Delete old rows for dirty buckets
+                    delete_query = sql.SQL("DELETE FROM {}.{} WHERE {} = %s").format(
+                        sql.Identifier("public"),
+                        sql.Identifier(entry["rollup_table"]),
+                        sql.Identifier(bucket_col),
+                    )
                     for bucket in dirty_buckets:
-                        cur.execute(
-                            f"DELETE FROM public.{entry['rollup_table']} "
-                            f"WHERE {bucket_col} = %s",
-                            (bucket,),
-                        )
+                        cur.execute(delete_query, (bucket,))
 
                     # Insert re-aggregated rows
-                    placeholders = ", ".join(["%s"] * len(columns))
-                    col_list = ", ".join(columns)
+                    col_identifiers = sql.SQL(", ").join(
+                        sql.Identifier(c) for c in columns
+                    )
+                    placeholders = sql.SQL(", ").join(
+                        sql.Placeholder() for _ in columns
+                    )
+                    insert_query = sql.SQL(
+                        "INSERT INTO {}.{} ({}) VALUES ({})"
+                    ).format(
+                        sql.Identifier("public"),
+                        sql.Identifier(entry["rollup_table"]),
+                        col_identifiers,
+                        placeholders,
+                    )
                     for row in result.result.data_array:
-                        cur.execute(
-                            f"INSERT INTO public.{entry['rollup_table']} ({col_list}) "
-                            f"VALUES ({placeholders})",
-                            row,
-                        )
+                        cur.execute(insert_query, row)
 
                     refreshed += 1
                     logger.info(
@@ -135,8 +155,11 @@ def run(instance_name: str, catalog: str = "main", schema: str = "lakets_sync"):
 
             except Exception as e:
                 logger.error("Failed to re-aggregate %s: %s", entry["name"], e)
+                failures.append(entry["name"])
 
         logger.info("Cold-tier refresh complete: %d RollUps processed", refreshed)
+        if failures:
+            logger.error("Failed cold refreshes: %s", ", ".join(failures))
         return refreshed
 
 

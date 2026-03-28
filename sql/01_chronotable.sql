@@ -75,7 +75,7 @@ BEGIN
                 VALUES (p_chronotable_id,
                         v_schema || '.' || v_table || '_' || to_char(v_start, 'YYYYMMDD_HH24MISS'),
                         v_start, v_end, 'active')
-                ON CONFLICT DO NOTHING;
+                ON CONFLICT (chronotable_id, range_start) DO NOTHING;
                 v_partitions_created := v_partitions_created + 1;
             EXCEPTION WHEN duplicate_table THEN
                 NULL;
@@ -174,6 +174,11 @@ BEGIN
         END IF;
         IF v_col_rec.is_nullable = 'NO' THEN v_col_defs := v_col_defs || ' NOT NULL'; END IF;
         IF v_col_rec.column_default IS NOT NULL THEN
+            -- Guard: reject defaults containing SQL injection patterns
+            IF v_col_rec.column_default ~* '(;|--|/\*)' THEN
+                RAISE EXCEPTION 'Unsafe column default detected on %: %',
+                    v_col_rec.column_name, v_col_rec.column_default;
+            END IF;
             v_col_defs := v_col_defs || format(' DEFAULT %s', v_col_rec.column_default);
         END IF;
     END LOOP;
@@ -329,4 +334,19 @@ BEGIN
 
     RETURN v_dropped;
 END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- create_chronotable: V2 alias for create_hypertable.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets.create_chronotable(
+    p_table_name TEXT,
+    p_time_column TEXT,
+    p_chunk_interval INTERVAL DEFAULT '7 days',
+    p_schema_name TEXT DEFAULT 'public'
+)
+RETURNS INT
+LANGUAGE sql
+AS $$
+    SELECT lakets.create_hypertable(p_table_name, p_time_column, p_chunk_interval, p_schema_name);
 $$;

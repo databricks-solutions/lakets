@@ -96,3 +96,72 @@ CREATE TABLE IF NOT EXISTS lakets._rollup_invalidation_log (
 
 CREATE INDEX IF NOT EXISTS idx_rollup_invalidation_rollup_id
     ON lakets._rollup_invalidation_log(rollup_id, tier, bucket_start);
+
+-- ---------------------------------------------------------------------------
+-- LVC Registry: tracks Last Value Cache configs per ChronoTable
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS lakets._lvc_registry (
+    id              SERIAL PRIMARY KEY,
+    chronotable_id  INT NOT NULL REFERENCES lakets._chronotable_registry(id) ON DELETE CASCADE,
+    cache_table_name TEXT NOT NULL,
+    key_columns     TEXT[] NOT NULL,
+    value_columns   TEXT[] NOT NULL DEFAULT '{}',
+    enabled         BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (chronotable_id)
+);
+
+-- ---------------------------------------------------------------------------
+-- Downsample Registry: tracks multi-resolution pipeline definitions
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS lakets._downsample_registry (
+    id              SERIAL PRIMARY KEY,
+    name            TEXT UNIQUE NOT NULL,
+    source_table    TEXT NOT NULL,
+    source_schema   TEXT NOT NULL DEFAULT 'public',
+    intervals       INTERVAL[] NOT NULL,
+    retention       INTERVAL[] NOT NULL,
+    agg_expressions TEXT[] NOT NULL,
+    group_by        TEXT[],
+    delta_catalog   TEXT NOT NULL DEFAULT 'main',
+    delta_schema    TEXT NOT NULL DEFAULT 'lakets_rollups',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- Additional indexes and constraints for performance and correctness
+-- ---------------------------------------------------------------------------
+
+-- Unique constraint for _ensure_partitions ON CONFLICT target
+ALTER TABLE lakets._chunk_metadata
+    ADD CONSTRAINT uq_chunk_metadata_ct_range UNIQUE (chronotable_id, range_start);
+
+-- Index for _touch_chunk_metadata trigger lookup by partition name
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chunk_metadata_chunk_name
+    ON lakets._chunk_metadata(chunk_name);
+
+-- FK index on _policy_registry (scanned by compression/retention jobs)
+CREATE INDEX IF NOT EXISTS idx_policy_registry_ct_type
+    ON lakets._policy_registry(chronotable_id, policy_type) WHERE enabled = TRUE;
+
+-- FK index on _rollup_registry (scanned on every data write via invalidation trigger)
+CREATE INDEX IF NOT EXISTS idx_rollup_registry_source_ct
+    ON lakets._rollup_registry(source_chronotable_id, refresh_mode)
+    WHERE refresh_mode = 'incremental';
+
+-- ---------------------------------------------------------------------------
+-- _resolve_partition_parent: Resolves a partition's parent table name.
+-- Shared helper used by all LakeTS triggers that fire on partitions.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets._resolve_partition_parent(p_schema TEXT, p_table TEXT)
+RETURNS TEXT
+LANGUAGE sql STABLE
+AS $$
+    SELECT p.relname
+    FROM pg_inherits i
+    JOIN pg_class ch ON i.inhrelid = ch.oid
+    JOIN pg_class p ON i.inhparent = p.oid
+    JOIN pg_namespace n ON ch.relnamespace = n.oid
+    WHERE n.nspname = p_schema AND ch.relname = p_table
+    LIMIT 1;
+$$;

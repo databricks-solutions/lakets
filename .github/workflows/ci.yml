@@ -1,0 +1,104 @@
+name: CI Security & Quality Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  sql-security-lint:
+    name: SQL Security Lint
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Check for raw string interpolation in EXECUTE
+        run: |
+          echo "Checking SQL files for unsafe dynamic SQL patterns..."
+          ERRORS=0
+
+          # Check for raw %s (not %I or %L) in EXECUTE/format statements
+          if grep -rn "EXECUTE.*format.*'%s'" sql/ --include="*.sql"; then
+            echo "::error::Found raw %s in EXECUTE format() — use %I for identifiers or %L for literals"
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          # Check for SECURITY DEFINER without explicit search_path
+          if grep -rn "SECURITY DEFINER" sql/ --include="*.sql" | grep -v "search_path"; then
+            echo "::warning::SECURITY DEFINER functions should set search_path explicitly"
+          fi
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::SQL security lint found $ERRORS issue(s)"
+            exit 1
+          fi
+          echo "SQL security lint passed"
+
+  python-security-lint:
+    name: Python Security Lint
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Check for f-string SQL injection patterns
+        run: |
+          echo "Checking Python files for SQL injection patterns..."
+          ERRORS=0
+
+          # Check for f-string SQL (SELECT/INSERT/DELETE/UPDATE/DROP)
+          if grep -rEn 'f"[^"]*\b(SELECT|INSERT|DELETE|UPDATE|DROP|ALTER)\b' databricks/ --include="*.py"; then
+            echo "::error::Found f-string SQL — use parameterized queries or psycopg2.sql module"
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          # Check for %-format SQL: "SELECT ... %s ..." % (val,)
+          if grep -rEn '"[^"]*(SELECT|INSERT INTO|DELETE FROM|UPDATE .* SET|DROP|ALTER)[^"]*"[[:space:]]*%' databricks/ --include="*.py"; then
+            echo "::error::Found %-format SQL — use parameterized queries or psycopg2.sql module"
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::Python security lint found $ERRORS issue(s)"
+            exit 1
+          fi
+          echo "Python security lint passed"
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Scan for hardcoded secrets
+        run: |
+          echo "Scanning for hardcoded secrets..."
+          ERRORS=0
+
+          # Check for hardcoded tokens/passwords/keys
+          if grep -rEni '(password|token|secret|api_key)[[:space:]]*=[[:space:]]*["\x27][^"\x27]{8,}' \
+              --include="*.py" --include="*.sql" --include="*.yml" \
+              --exclude-dir=".git" --exclude-dir="tests" . \
+            | grep -v 'environ\|getenv\|%s\|parameter\|<.*>\|example\|placeholder'; then
+            echo "::error::Potential hardcoded secret detected"
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::Secret scan found $ERRORS issue(s)"
+            exit 1
+          fi
+          echo "Secret scan passed"
+
+  python-tests:
+    name: Python Unit Tests
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Install dependencies
+        run: pip3 install psycopg2-binary pytest
+
+      - name: Run Python unit tests
+        run: python3 -m pytest tests/test_python_patterns.py -v

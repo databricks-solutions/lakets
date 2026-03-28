@@ -18,13 +18,8 @@ DECLARE
 BEGIN
     -- For partitioned tables, TG_TABLE_NAME is the partition name.
     -- Look up the parent table to find the shadow table name.
-    SELECT p.relname INTO v_parent
-    FROM pg_inherits i
-    JOIN pg_class c ON i.inhrelid = c.oid
-    JOIN pg_class p ON i.inhparent = p.oid
-    JOIN pg_namespace n ON c.relnamespace = n.oid
-    WHERE n.nspname = TG_TABLE_SCHEMA AND c.relname = TG_TABLE_NAME
-    LIMIT 1;
+    SELECT lakets._resolve_partition_parent(TG_TABLE_SCHEMA, TG_TABLE_NAME)
+    INTO v_parent;
 
     SELECT shadow_table_name INTO v_shadow
     FROM lakets._chronotable_registry

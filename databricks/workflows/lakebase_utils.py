@@ -24,6 +24,8 @@ def get_lakebase_connection(instance_name: str, database: str = "databricks_post
         user=w.current_user.me().user_name,
         password=cred.token,
         sslmode="require",
+        connect_timeout=30,
+        options="-c statement_timeout=600000 -c lock_timeout=30000",
     )
     conn.autocommit = True
     return conn
@@ -33,11 +35,13 @@ def get_lakebase_connection(instance_name: str, database: str = "databricks_post
 def lakebase_cursor(instance_name: str, database: str = "databricks_postgres"):
     """Context manager yielding a cursor connected to Lakebase."""
     conn = get_lakebase_connection(instance_name, database)
-    cur = conn.cursor()
     try:
-        yield cur
+        cur = conn.cursor()
+        try:
+            yield cur
+        finally:
+            cur.close()
     finally:
-        cur.close()
         conn.close()
 
 

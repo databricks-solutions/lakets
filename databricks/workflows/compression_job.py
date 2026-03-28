@@ -15,6 +15,7 @@ Usage as Databricks Job:
 """
 import logging
 
+from psycopg2 import sql
 from pyspark.sql import SparkSession
 
 from lakebase_utils import fetch_all, lakebase_cursor
@@ -34,8 +35,8 @@ def run(instance_name: str, catalog: str, schema: str = "default", drop_partitio
                    pr.config->>'compress_after' as compress_after,
                    pr.config->>'segment_by' as segment_by,
                    pr.config->>'order_by' as order_by
-            FROM lakets._hypertable_registry hr
-            JOIN lakets._policy_registry pr ON hr.id = pr.hypertable_id
+            FROM lakets._chronotable_registry hr
+            JOIN lakets._policy_registry pr ON hr.id = pr.chronotable_id
             WHERE pr.policy_type = 'compression' AND pr.enabled = TRUE
         """)
         logger.info("Found %d hypertable(s) with compression policies", len(hypertables))
@@ -59,9 +60,7 @@ def run(instance_name: str, catalog: str, schema: str = "default", drop_partitio
             for chunk in chunks:
                 delta_table = f"{catalog}.{schema}.{ht['table_name']}_archive"
 
-                # Read chunk data from Lakebase via JDBC
                 chunk_parts = chunk["chunk_name"].split(".")
-                jdbc_url = cur.connection.dsn  # Get connection string
                 logger.info("Tiering chunk %s -> %s", chunk["chunk_name"], delta_table)
 
                 # Mark as compressed in metadata
@@ -69,9 +68,11 @@ def run(instance_name: str, catalog: str, schema: str = "default", drop_partitio
 
                 if drop_partitions:
                     # Drop the Lakebase partition to free storage
-                    cur.execute(
-                        "DROP TABLE IF EXISTS %s.%s" % (chunk_parts[0], chunk_parts[1])
+                    drop_query = sql.SQL("DROP TABLE IF EXISTS {}.{}").format(
+                        sql.Identifier(chunk_parts[0]),
+                        sql.Identifier(chunk_parts[1]),
                     )
+                    cur.execute(drop_query)
                     cur.execute("""
                         UPDATE lakets._chunk_metadata
                         SET status = 'tiered', tiered_at = now()
@@ -85,7 +86,7 @@ def run(instance_name: str, catalog: str, schema: str = "default", drop_partitio
             cur.execute("""
                 UPDATE lakets._policy_registry
                 SET last_run_at = now()
-                WHERE hypertable_id = %s AND policy_type = 'compression'
+                WHERE chronotable_id = %s AND policy_type = 'compression'
             """, (ht["id"],))
 
         logger.info("Total chunks compressed: %d", total_compressed)

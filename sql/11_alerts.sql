@@ -65,6 +65,11 @@ BEGIN
         RAISE EXCEPTION '%.% is not a registered ChronoTable', p_schema_name, p_table_name;
     END IF;
 
+    -- Validate p_group_by is a simple column name to prevent SQL injection
+    IF p_group_by !~ '^[a-zA-Z_][a-zA-Z0-9_]*$' THEN
+        RAISE EXCEPTION 'p_group_by must be a simple column name, got: %', p_group_by;
+    END IF;
+
     RETURN QUERY EXECUTE format(
         'SELECT %L::TEXT, ''critical''::TEXT, now(),
                 %I::TEXT, max(%I), now() - max(%I)

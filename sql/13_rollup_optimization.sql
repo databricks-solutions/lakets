@@ -26,9 +26,9 @@ ALTER TABLE lakets._rollup_registry
     ADD COLUMN IF NOT EXISTS export_mode         TEXT    DEFAULT 'incremental',
     ADD COLUMN IF NOT EXISTS last_exported_at    TIMESTAMPTZ;
 
--- M26: Index for fast tier lookups on chunk metadata
-CREATE INDEX IF NOT EXISTS idx_chunk_metadata_ct_status
-    ON lakets._chunk_metadata(chronotable_id, status);
+-- M26: Covering index for fast tier lookups on chunk metadata
+CREATE INDEX IF NOT EXISTS idx_chunk_metadata_ct_status_range
+    ON lakets._chunk_metadata(chronotable_id, status, range_start, range_end);
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -538,14 +538,9 @@ DECLARE
     v_parent      TEXT;
     v_rollup      RECORD;
 BEGIN
-    -- Resolve partition parent (same pattern as other LakeTS triggers)
-    SELECT p.relname INTO v_parent
-    FROM pg_inherits i
-    JOIN pg_class ch ON i.inhrelid = ch.oid
-    JOIN pg_class p ON i.inhparent = p.oid
-    JOIN pg_namespace n ON ch.relnamespace = n.oid
-    WHERE n.nspname = TG_TABLE_SCHEMA AND ch.relname = TG_TABLE_NAME
-    LIMIT 1;
+    -- Resolve partition parent using shared helper
+    SELECT lakets._resolve_partition_parent(TG_TABLE_SCHEMA, TG_TABLE_NAME)
+    INTO v_parent;
 
     -- Get the time column and ChronoTable ID
     SELECT cr.id, cr.time_column INTO v_ct_id, v_time_col

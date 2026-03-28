@@ -25,12 +25,7 @@ BEGIN
     FROM lakets._lvc_registry lr
     JOIN lakets._chronotable_registry hr ON lr.chronotable_id = hr.id
     WHERE hr.table_name = COALESCE(
-        (SELECT p.relname FROM pg_inherits i
-         JOIN pg_class ch ON i.inhrelid = ch.oid
-         JOIN pg_class p ON i.inhparent = p.oid
-         JOIN pg_namespace n ON ch.relnamespace = n.oid
-         WHERE n.nspname = TG_TABLE_SCHEMA AND ch.relname = TG_TABLE_NAME
-         LIMIT 1),
+        lakets._resolve_partition_parent(TG_TABLE_SCHEMA, TG_TABLE_NAME),
         TG_TABLE_NAME
     ) AND hr.schema_name = TG_TABLE_SCHEMA;
 

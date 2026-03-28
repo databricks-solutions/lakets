@@ -44,7 +44,7 @@ BEGIN
             ELSIF jsonb_typeof(v_row->v_key) = 'null' THEN
                 v_vals := v_vals || 'NULL';
             ELSE
-                v_vals := v_vals || (v_row->>v_key);
+                v_vals := v_vals || format('%L', v_row->>v_key);
             END IF;
             v_first := FALSE;
         END LOOP;

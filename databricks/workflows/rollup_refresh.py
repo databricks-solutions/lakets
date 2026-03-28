@@ -25,6 +25,7 @@ def run(instance_name: str):
 
         refreshed = 0
         skipped = 0
+        failures = []
         for rollup in rollups:
             try:
                 cur.execute(
@@ -43,8 +44,11 @@ def run(instance_name: str):
                     logger.info("Skipped (refresh_lag): %s", rollup["name"])
             except Exception as e:
                 logger.error("Failed to refresh %s: %s", rollup["name"], e)
+                failures.append(rollup["name"])
 
         logger.info("Refreshed %d, skipped %d / %d total", refreshed, skipped, len(rollups))
+        if failures:
+            logger.error("Failed refreshes: %s", ", ".join(failures))
         return refreshed
 
 

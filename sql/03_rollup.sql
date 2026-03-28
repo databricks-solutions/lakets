@@ -131,6 +131,12 @@ BEGIN
         RAISE EXCEPTION 'RollUp % not found', p_name;
     END IF;
 
+    -- Serialize concurrent refresh per rollup via advisory lock
+    IF NOT pg_try_advisory_xact_lock('lakets._rollup_registry'::regclass::oid::bigint, v_rec.id) THEN
+        RAISE NOTICE 'refresh_rollup: % is already being refreshed by another session, skipping', p_name;
+        RETURN FALSE;
+    END IF;
+
     -- Honor refresh_lag: skip if refreshed too recently
     IF v_rec.last_refreshed_at IS NOT NULL
        AND v_rec.refresh_lag IS NOT NULL
@@ -183,9 +189,10 @@ BEGIN
             );
         END IF;
 
-        -- Clear processed hot-tier entries
+        -- Clear only processed hot-tier entries (scoped to avoid racing with concurrent writes)
         DELETE FROM lakets._rollup_invalidation_log
-        WHERE rollup_id = v_rec.id AND tier = 'hot';
+        WHERE rollup_id = v_rec.id AND tier = 'hot'
+          AND bucket_start < v_dirty_from;
     END IF;
 
     -- Advance watermark using detected bucket column
@@ -326,14 +333,9 @@ DECLARE
     v_parent_table TEXT;
     v_time_col TEXT;
 BEGIN
-    -- Resolve partition parent (same pattern as _lvc_trigger_fn / _sync_trigger_fn)
-    SELECT p.relname INTO v_parent_table
-    FROM pg_inherits i
-    JOIN pg_class ch ON i.inhrelid = ch.oid
-    JOIN pg_class p ON i.inhparent = p.oid
-    JOIN pg_namespace n ON ch.relnamespace = n.oid
-    WHERE n.nspname = TG_TABLE_SCHEMA AND ch.relname = TG_TABLE_NAME
-    LIMIT 1;
+    -- Resolve partition parent via shared helper
+    SELECT lakets._resolve_partition_parent(TG_TABLE_SCHEMA, TG_TABLE_NAME)
+    INTO v_parent_table;
 
     -- Get time column for this ChronoTable
     SELECT cr.time_column INTO v_time_col
@@ -418,6 +420,29 @@ BEGIN
         'FOR EACH STATEMENT EXECUTE FUNCTION lakets._bulk_import_invalidation()',
         v_schema, v_table
     );
+
+    -- M23: Install _touch_chunk_metadata on all existing partitions
+    -- so chunk-skip pruning (_get_dirty_chunks) can track last_modified_at
+    DECLARE
+        v_part RECORD;
+    BEGIN
+        FOR v_part IN
+            SELECT c.relname AS part_name, n.nspname AS part_schema
+            FROM pg_inherits i
+            JOIN pg_class c ON i.inhrelid = c.oid
+            JOIN pg_class p ON i.inhparent = p.oid
+            JOIN pg_namespace n ON c.relnamespace = n.oid
+            JOIN pg_namespace pn ON p.relnamespace = pn.oid
+            WHERE pn.nspname = v_schema AND p.relname = v_table
+        LOOP
+            EXECUTE format(
+                'CREATE OR REPLACE TRIGGER trg_lakets_touch_chunk '
+                'AFTER INSERT ON %I.%I '
+                'FOR EACH STATEMENT EXECUTE FUNCTION lakets._touch_chunk_metadata()',
+                v_part.part_schema, v_part.part_name
+            );
+        END LOOP;
+    END;
 END;
 $$;
 
@@ -444,6 +469,9 @@ BEGIN
     IF NOT FOUND THEN
         RAISE EXCEPTION 'RollUp % not found', p_rollup_name;
     END IF;
+
+    -- Acquire advisory lock to prevent racing with refresh_rollup
+    PERFORM pg_advisory_xact_lock('lakets._rollup_registry'::regclass::oid::bigint, v_rollup_id);
 
     -- Clear invalidation log entries for this RollUp
     DELETE FROM lakets._rollup_invalidation_log WHERE rollup_id = v_rollup_id;
