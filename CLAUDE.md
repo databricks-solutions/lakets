@@ -54,7 +54,7 @@ Modules are numbered and installed in order via `sql/99_install.sql`:
 
 ```
 00_version.sql          → Version tracking table + upgrade guard (creates lakets schema)
-00_schema.sql           → 5 metadata tables
+00_schema.sql           → 7 metadata tables + indexes + helper functions
 01_chronotable.sql      → Time-partitioned table management (RANGE partitioning)
 02_timeseries_functions.sql → time_bucket, first/last aggregates, gapfill, locf, interpolate, delta, rate, histogram
 03_rollup.sql           → Incremental aggregation engine (per-bucket refresh + invalidation log)
@@ -82,6 +82,8 @@ Module 07 is installed after 12 (not in numeric order) because it depends on fun
 | `_rollup_registry` | RollUp definitions: source query, bucket interval, watermark, `depends_on[]`, export config |
 | `_rollup_invalidation_log` | Dirty buckets needing re-aggregation, with tier (hot/cold) |
 | `_policy_registry` | Compression, retention, tiering policies |
+| `_lvc_registry` | Last Value Cache configurations (key/value columns, cache table name) |
+| `_downsample_registry` | Multi-resolution downsampling pipeline metadata |
 
 ## Naming Conventions
 
@@ -92,7 +94,7 @@ Module 07 is installed after 12 (not in numeric order) because it depends on fun
 | Real-time views | `_rollup_rt_{name}` | `_rollup_rt_hourly_agg` |
 | Shadow tables | `_shadow_{table}` | `_shadow_metrics` |
 | LVC cache | `_lvc_{table}` | `_lvc_system_metrics` |
-| Internal functions | `_{purpose}` | `_ensure_partitions`, `_inject_time_predicate` |
+| Internal functions | `_{purpose}` | `_ensure_partitions`, `_inject_time_predicate`, `_resolve_partition_parent` |
 | Aggregate state types | `_{purpose}_state` | `_first_last_state` |
 
 ## Test Framework
@@ -108,7 +110,12 @@ END $$;
 
 Each test file creates its own test tables, runs assertions, then cleans up with `DROP TABLE ... CASCADE` and `DELETE FROM lakets._*`. Tests are independent and can run in any order.
 
-118 test cases across 13 suites. Test report: `tests/TEST_REPORT.md`.
+146 test cases across 15 suites (13 SQL + 1 SQL hardening + 1 Python). Test report: `tests/TEST_REPORT.md`.
+
+Python tests run without a live database:
+```bash
+python3 -m pytest tests/test_python_patterns.py -v
+```
 
 ## Databricks Workflows (`databricks/`)
 
@@ -122,6 +129,16 @@ Python jobs in `databricks/workflows/` connect to Lakebase via `lakebase_utils.p
 | RollUp Refresh | Every 15 min | Incremental hot-tier refresh |
 | Cold RollUp Refresh | Daily 1 AM | Re-aggregate cold-tier dirty buckets |
 | RollUp Export | Daily 4 AM | Export RollUps to Delta |
+
+## CI Workflow
+
+PRs to `main` are validated by `.github/workflows/ci.yml`:
+- SQL security lint (checks for unsafe dynamic SQL patterns)
+- Python security lint (checks for f-string SQL injection)
+- Secret scan (checks for hardcoded credentials)
+- Python unit tests (`tests/test_python_patterns.py`)
+
+Releases are built by `.github/workflows/release.yml` on tag push (`v*`).
 
 ## Key Design Decisions
 

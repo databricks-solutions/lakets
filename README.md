@@ -122,11 +122,13 @@ flowchart LR
 ## Project Structure
 
 ```
-sql/               -- SQL functions (install on Lakebase)
-tests/             -- SQL test suites
+sql/               -- SQL modules (install on Lakebase)
+tests/             -- SQL + Python test suites (146 tests)
 databricks/        -- Workflow jobs + Asset Bundle
-benchmarks/        -- Benchmark suite (gitignored)
+.github/workflows/ -- CI (PR checks) + Release (tag → GitHub Release)
 docs/              -- Documentation
+demo/              -- Financial demo with data generator
+requirements.txt   -- Python dependencies for workflows
 ```
 
 ## Documentation
@@ -136,9 +138,13 @@ docs/              -- Documentation
 - [API Reference](docs/api_reference.md) - All 70+ functions documented
 - [Lakehouse Sync Setup](docs/lakehouse_sync_setup.md) - Delta Lake integration
 
+## Contributing
+
+PRs to `main` are validated by CI checks (SQL lint, Python lint, secret scan, unit tests). See `.github/workflows/ci.yml`.
+
 ## Requirements
 
 - Databricks workspace with Lakebase
 - PostgreSQL 16+ (Lakebase default)
-- For workflows: Databricks cluster with `psycopg2` + SDK
+- For workflows: Databricks cluster with Python dependencies (`pip install -r requirements.txt`)
 

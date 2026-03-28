@@ -13,26 +13,16 @@ LakeTS is a time series toolkit for Databricks Lakebase. It adds automatic parti
 Connect to your Lakebase instance and run the installer:
 
 ```bash
-psql -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f lakets/sql/99_install.sql
-```
+# Option A: Single-file install (recommended)
+psql -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f dist/lakets.sql
 
-Or execute each file in order:
-```sql
--- Run in your SQL client connected to Lakebase
-\ir lakets/sql/00_schema.sql
-\ir lakets/sql/01_hypertable.sql       -- ChronoTable management (create_chronotable alias included)
-\ir lakets/sql/02_hyperfunctions.sql   -- Time series functions
-\ir lakets/sql/03_rollup.sql
-\ir lakets/sql/04_compression.sql
-\ir lakets/sql/05_retention.sql
-\ir lakets/sql/06_monitoring.sql
-\ir lakets/sql/07_shadow_sync.sql
+# Option B: From source (all modules)
+psql -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f sql/99_install.sql
 ```
 
 Verify installation:
 ```sql
-SELECT count(*) FROM information_schema.routines WHERE routine_schema = 'lakets';
--- Should return 56
+SELECT version, installed_at, modules FROM lakets._version ORDER BY installed_at DESC LIMIT 1;
 ```
 
 ## 2. Create Your First ChronoTable

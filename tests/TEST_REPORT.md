@@ -10,9 +10,9 @@
 
 | Metric | Value |
 |--------|-------|
-| **Test Suites** | 13 |
-| **Total Test Cases** | 118 |
-| **Passed** | 118 |
+| **Test Suites** | 15 (13 SQL + 1 SQL hardening + 1 Python) |
+| **Total Test Cases** | 146 |
+| **Passed** | 146 |
 | **Failed** | 0 |
 | **Skipped** | 0 |
 | **Pass Rate** | **100%** |
@@ -36,6 +36,8 @@
 | 11 | test_alerts | 11_alerts | 4 | 4 | PASS |
 | 12 | test_ingest | 12_ingest | 7 | 7 | PASS |
 | 13 | test_rollup_optimization | 13_rollup_optimization | 25 | 25 | PASS |
+| 14 | test_security_hardening | Schema, indexes, constraints | 13 | 13 | PASS |
+| 15 | test_python_patterns | Python workflow patterns | 15 | 15 | PASS |
 
 ---
 
@@ -285,6 +287,50 @@
 | 11 Alerts | 11_alerts.sql | test_alerts.sql | check_alerts, deadman_switch |
 | 12 Ingest | 12_ingest.sql | test_ingest.sql | ingest_batch, ingest_prometheus |
 | 13 RollUp Optimization | 13_rollup_optimization.sql | test_rollup_optimization.sql | All M23-M28 functions (25 tests) |
+| 14 Hardening | 00_schema, 01_chronotable, 11_alerts | test_security_hardening.sql | Schema completeness, indexes, constraints, input validation |
+| 15 Python Patterns | databricks/workflows/*.py | test_python_patterns.py | SQL query construction safety, connection handling |
+
+---
+
+### 14. test_security_hardening (13 tests)
+
+| Test | Description | Result |
+|------|-------------|--------|
+| T1 | _lvc_registry table exists with correct columns | PASS |
+| T2 | _downsample_registry table exists with correct columns | PASS |
+| T3 | create_chronotable alias works | PASS |
+| T4 | _resolve_partition_parent returns correct parent | PASS |
+| T5 | uq_chunk_metadata_ct_range unique constraint exists | PASS |
+| T6 | idx_chunk_metadata_chunk_name unique index exists | PASS |
+| T7 | valid_export_mode CHECK constraint rejects invalid values | PASS |
+| T8 | ON CONFLICT target validated by constraint existence | PASS |
+| T9 | alert_deadman rejects invalid p_group_by input | PASS |
+| T10 | column_default injection guard verified | PASS |
+| T11 | _resolve_partition_parent returns NULL for non-partition | PASS |
+| T12 | idx_chunk_metadata_ct_status_range covering index exists | PASS |
+| T13 | idx_rollup_registry_source_ct partial index exists | PASS |
+
+### 15. test_python_patterns (15 tests)
+
+| Test | Description | Result |
+|------|-------------|--------|
+| T1 | rollup_export: no f-string SQL in filter | PASS |
+| T2 | rollup_export: _export_full uses sql.Identifier | PASS |
+| T3 | rollup_export: _export_incremental uses sql.Identifier | PASS |
+| T4 | rollup_export: _validate_identifier function exists | PASS |
+| T5 | cold_rollup_refresh: validates bucket_col | PASS |
+| T6 | cold_rollup_refresh: DELETE uses sql.Identifier | PASS |
+| T7 | cold_rollup_refresh: INSERT uses sql.Identifier | PASS |
+| T8 | cold_rollup_refresh: tracks failures | PASS |
+| T9 | compression_job: DROP TABLE uses sql.Identifier | PASS |
+| T10 | compression_job: uses _chronotable_registry | PASS |
+| T11 | compression_job: no dead jdbc_url code | PASS |
+| T12 | lakebase_utils: connect_timeout present | PASS |
+| T13 | lakebase_utils: statement_timeout present | PASS |
+| T14 | lakebase_utils: cursor cleanup on error | PASS |
+| T15 | rollup_refresh: tracks failures | PASS |
+
+> Python tests run without a live database: `python3 -m pytest tests/test_python_patterns.py -v`
 
 ---
 
