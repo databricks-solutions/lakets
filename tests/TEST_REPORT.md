@@ -1,8 +1,8 @@
 # LakeTS Test Report
 
-**Date:** 2026-03-26
+**Date:** 2026-03-29
 **Environment:** Lakebase provisioned instance (PG 16.12, CU_1)
-**Branch:** `feat/rollup-optimization-m23-m28`
+**Branch:** `main`
 
 ---
 
