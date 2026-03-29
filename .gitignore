@@ -38,3 +38,6 @@ venv/
 # Environment
 .env
 .env.*
+
+# GitHub Actions runner cache
+_actions/
