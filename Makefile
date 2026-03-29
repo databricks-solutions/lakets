@@ -25,13 +25,13 @@ help:  ## Show this help
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 release:  ## Release patch version (bump VERSION, update CHANGELOG, tag, push)
-	@./scripts/release.sh patch
+	@./bin/release.sh patch
 
 release-dry-run:  ## Preview what the next patch release would do (no changes)
-	@./scripts/release.sh --dry-run patch
+	@./bin/release.sh --dry-run patch
 
 release-minor:  ## Release minor version bump
-	@./scripts/release.sh minor
+	@./bin/release.sh minor
 
 release-major:  ## Release major version bump
-	@./scripts/release.sh major
+	@./bin/release.sh major

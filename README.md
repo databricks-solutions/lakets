@@ -19,6 +19,7 @@ LakeTS is a time series toolkit for Databricks Lakebase — pure SQL (PL/pgSQL) 
 | **Alert Rules** | SQL-native `alert_check()` + `alert_deadman()` on hot data |
 | **Bulk Ingest** | `ingest_batch()` for JSONB arrays + `ingest_prometheus()` |
 | **Downsampling Registry** | Multi-resolution pipeline metadata + `query_auto_resolution()` |
+| **Unity Catalog Integration** | Auto-register and tag Delta exports in Unity Catalog via `register_uc_table()` / `tag_uc_table()` |
 | **Monitoring** | Prometheus-compatible metrics endpoint |
 | **Benchmarks** | TSBS-adapted benchmark suite |
 
@@ -69,6 +70,20 @@ SELECT version, installed_at, modules FROM lakets._version ORDER BY installed_at
 
 ```bash
 psql -h <host> -U <user> -d <database> -f sql/00_uninstall.sql
+```
+
+### Migrate from v0.1.0 to v0.1.1
+
+If you already have LakeTS v0.1.0 installed, use the migration runner instead of a full reinstall:
+
+```bash
+psql -h <host> -U <user> -d <database> -f sql/migrate.sql
+```
+
+The migration runner detects your installed version and applies only pending migrations. All migrations are idempotent — safe to re-run. After migration, verify with:
+
+```sql
+SELECT version, installed_at FROM lakets._version ORDER BY installed_at;
 ```
 
 ## Quick Start
@@ -137,6 +152,51 @@ requirements.txt   -- Python dependencies for workflows
 - [How It Works](docs/how_it_works.md) - Deep dive into internals with diagrams
 - [API Reference](docs/api_reference.md) - All 70+ functions documented
 - [Lakehouse Sync Setup](docs/lakehouse_sync_setup.md) - Delta Lake integration
+
+## Observability Dashboards
+
+LakeTS ships a pre-built **Databricks AI/BI dashboard** for monitoring your installation:
+
+**File:** `demo/dashboards/lakets_monitoring.lvdash.json`
+
+### Dashboard Pages
+
+| Page | Panels |
+|------|--------|
+| **Partition Health** | Hypertable count, chunk counts by status (active/compressed/tiered/dropped), chunk health table per hypertable, estimated row counts |
+| **RollUp Monitoring** | Stale RollUp counter, dirty bucket total, watermark lag bar chart per RollUp (colored by refresh mode), invalidation log depth, full RollUp status table |
+| **LVC & System** | LVC-enabled table count, total cached series, database size (GB), LVC stats table, active policies by type |
+
+### Importing into Databricks
+
+1. In your Databricks workspace, go to **Dashboards**.
+2. Click **Import** (top-right menu).
+3. Upload `demo/dashboards/lakets_monitoring.lvdash.json`.
+4. When prompted, select the **SQL warehouse** connected to your Lakebase instance.
+5. Click **Publish** to make the dashboard available to your team.
+
+### Data Sources
+
+All panels query live from Lakebase via the monitoring functions:
+
+```sql
+-- All operational metrics (Prometheus-compatible key-value rows)
+SELECT * FROM lakets.lakets_metrics();
+
+-- Per-hypertable chunk health summary
+SELECT * FROM lakets.chunk_health();
+
+-- LVC cache occupancy per table
+SELECT * FROM lakets.lvc_stats();
+```
+
+The SQL warehouse must have network access to your Lakebase PostgreSQL endpoint.
+
+### Recommended Refresh Schedule
+
+Set the dashboard to **auto-refresh every 15 minutes** to align with the RollUp refresh job cadence.
+
+---
 
 ## Contributing
 

@@ -68,6 +68,7 @@ Modules are numbered and installed in order via `sql/99_install.sql`:
 11_alerts.sql           → SQL-native alert rules
 12_ingest.sql           → Batch JSON + Prometheus ingest
 13_rollup_optimization.sql → M23-M28: chunk-skip, predicate injection, DAG deps, tier routing, batch refresh, export
+14_uc_integration.sql   → Unity Catalog Integration: register/tag Delta exports in UC, _uc_registry metadata table
 ```
 
 Module 07 is installed after 12 (not in numeric order) because it depends on functions from later modules.

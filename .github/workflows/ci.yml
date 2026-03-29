@@ -91,6 +91,46 @@ jobs:
           fi
           echo "Secret scan passed"
 
+  migration-lint:
+    name: Migration Lint
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Lint migration files
+        run: |
+          echo "Checking migration files in migrations/..."
+          ERRORS=0
+
+          for f in migrations/V*.sql; do
+            [ -e "$f" ] || continue
+
+            # Check naming convention: V{digits}_V{digits}_{description}.sql
+            filename=$(basename "$f")
+            if ! echo "$filename" | grep -qE '^V[0-9]+_V[0-9]+_[a-z0-9_]+\.sql$'; then
+              echo "::error file=$f::Migration file does not match naming convention V{from}_V{to}_{description}.sql"
+              ERRORS=$((ERRORS + 1))
+            fi
+
+            # Check for version guard (must check source version)
+            if ! grep -q "FROM lakets._version WHERE version" "$f"; then
+              echo "::error file=$f::Migration missing version guard (FROM lakets._version WHERE version)"
+              ERRORS=$((ERRORS + 1))
+            fi
+
+            # Check for version record (must insert new version)
+            if ! grep -q "INSERT INTO lakets._version" "$f"; then
+              echo "::error file=$f::Migration must INSERT INTO lakets._version to record applied version"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::Migration lint found $ERRORS issue(s)"
+            exit 1
+          fi
+          echo "Migration lint passed"
+
   python-tests:
     name: Python Unit Tests
     runs-on: self-hosted

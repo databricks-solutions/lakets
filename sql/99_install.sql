@@ -53,6 +53,9 @@
 -- Step 14: RollUp Optimization — Modules 23–28
 \ir 13_rollup_optimization.sql
 
+-- Step 15: Unity Catalog Integration — Module 14
+\ir 14_uc_integration.sql
+
 -- Verify installation
 DO $$
 DECLARE v_func_count INT; v_table_count INT;

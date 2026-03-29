@@ -23,6 +23,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version
 - **Partial index `idx_policy_registry_ct_type`** — On `(chronotable_id, policy_type)` WHERE enabled, for compression/retention job performance.
 - **CHECK constraint `valid_export_mode`** — Ensures `export_mode` is either `'full'` or `'incremental'`.
 - **Covering index `idx_chunk_metadata_ct_status_range`** — Replaces `idx_chunk_metadata_ct_status` with a covering index including `range_start` and `range_end`.
+- **`sql/14_uc_integration.sql`** — Unity Catalog Integration module: `register_uc_table()`, `tag_uc_table()`, `get_uc_registrations()`, `unregister_uc_table()`, and `_uc_registry` metadata table for tracking Delta exports in Unity Catalog.
+- **`databricks/workflows/uc_registration.py`** — Workflow job that ensures Delta tables exist in Unity Catalog and applies tags via the Databricks REST API.
+- **`sql/migrate.sql`** — Migration runner for upgrading existing installations without a full reinstall.
+- **`migrations/V010_V011_security_hardening.sql`** — Idempotent migration script (v0.1.0 → v0.1.1): adds missing DDL tables, indexes, columns, and records the upgrade in `_version`.
 - **CI workflow** (`.github/workflows/ci.yml`) — PR validation with SQL lint, Python security lint, secret scan, and Python unit tests.
 - **`requirements.txt`** — Python dependency manifest for workflow jobs (`databricks-sdk`, `psycopg2-binary`).
 - **`tests/test_security_hardening.sql`** — 13 SQL test cases covering schema completeness, indexes, constraints, and input validation.

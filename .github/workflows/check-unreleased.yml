@@ -103,7 +103,7 @@ jobs:
               '',
               'Run the local release script (requires push access):',
               '```bash',
-              `./scripts/release.sh ${bumpType}   # bumps to v${nextVersion}`,
+              `./bin/release.sh ${bumpType}   # bumps to v${nextVersion}`,
               '```',
               '',
               'Or trigger the release workflow manually:',

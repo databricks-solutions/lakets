@@ -2,6 +2,14 @@
 -- LakeTS Core Schema
 -- Metadata tables for hypertable management, chunk tracking, and policies.
 -- Requires: 00_version.sql (creates the lakets schema)
+--
+-- Multi-tenant install: pass -v lakets_schema=<name> to psql to install
+-- metadata under a custom schema instead of the default 'lakets'.
+-- Example: psql -v lakets_schema=lakets_dev -f sql/99_install.sql
+-- If the variable is not set, psql substitutes it as the literal string
+-- ':lakets_schema' which is intentionally not used -- all objects use the
+-- 'lakets' schema by default, hardcoded for compatibility with v0.1.x.
+-- Full parameterization is planned for v0.3.0 (see docs/design/multi-tenant-namespacing.md).
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
