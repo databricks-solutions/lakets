@@ -19,16 +19,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Validate tag matches VERSION file
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          # For workflow_dispatch, inputs.tag is e.g. "v0.1.1"; for push events, GITHUB_REF_NAME is e.g. "v0.1.1"
+          INPUT_TAG="${{ inputs.tag }}"
+          REF_NAME="${GITHUB_REF_NAME}"
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          TAG_VERSION="${TAG#v}"
           FILE_VERSION="$(tr -d '[:space:]' < VERSION)"
           if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
             echo "ERROR: Tag version ($TAG_VERSION) does not match VERSION file ($FILE_VERSION)"
             exit 1
           fi
           echo "VERSION=$FILE_VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=v$FILE_VERSION" >> "$GITHUB_ENV"
 
       - name: Build distribution
         run: |
@@ -48,10 +55,10 @@ jobs:
 
           ```bash
           # Download
-          curl -LO https://github.com/${{ github.repository }}/releases/download/v${{ env.VERSION }}/lakets.sql
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_TAG }}/lakets.sql
 
           # Verify checksum
-          curl -LO https://github.com/${{ github.repository }}/releases/download/v${{ env.VERSION }}/lakets.sql.sha256
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_TAG }}/lakets.sql.sha256
           sha256sum -c lakets.sql.sha256
 
           # Install
@@ -79,8 +86,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ env.VERSION }}" \
-            --title "LakeTS v${{ env.VERSION }}" \
+          gh release create "${{ env.RELEASE_TAG }}" \
+            --title "LakeTS ${{ env.RELEASE_TAG }}" \
             --notes-file /tmp/release-notes.md \
             --generate-notes \
             dist/lakets.sql \
