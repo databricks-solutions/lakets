@@ -41,44 +41,47 @@ jobs:
           sha256sum lakets.sql > lakets.sql.sha256
           cat lakets.sql.sha256
 
+      - name: Write release notes
+        run: |
+          cat > /tmp/release-notes.md << 'RELEASE_NOTES'
+          ## Install on Lakebase
+
+          ```bash
+          # Download
+          curl -LO https://github.com/${{ github.repository }}/releases/download/v${{ env.VERSION }}/lakets.sql
+
+          # Verify checksum
+          curl -LO https://github.com/${{ github.repository }}/releases/download/v${{ env.VERSION }}/lakets.sql.sha256
+          sha256sum -c lakets.sql.sha256
+
+          # Install
+          psql -h <host> -U <user> -d <database> -f lakets.sql
+          ```
+
+          ## Install via psycopg2
+
+          ```python
+          import psycopg2
+          conn = psycopg2.connect(host="<host>", user="<user>", dbname="<database>", password="<token>", sslmode="require")
+          conn.autocommit = True
+          with open('lakets.sql') as f:
+              conn.cursor().execute(f.read())
+          ```
+
+          ## Check installed version
+
+          ```sql
+          SELECT version, installed_at FROM lakets._version ORDER BY installed_at DESC LIMIT 1;
+          ```
+          RELEASE_NOTES
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@c062e08bd532815e2082a7e09ce9571a6592df56  # v2.2.1
-        with:
-          name: LakeTS v${{ env.VERSION }}
-          body: |
-            ## LakeTS v${{ env.VERSION }}
-
-            ### Install on Lakebase
-
-            ```bash
-            # Download
-            curl -LO https://github.com/${{ github.repository }}/releases/download/v${{ env.VERSION }}/lakets.sql
-
-            # Verify checksum
-            curl -LO https://github.com/${{ github.repository }}/releases/download/v${{ env.VERSION }}/lakets.sql.sha256
-            sha256sum -c lakets.sql.sha256
-
-            # Install
-            psql -h <host> -U <user> -d <database> -f lakets.sql
-            ```
-
-            ### Install via psycopg2
-
-            ```python
-            import psycopg2
-            conn = psycopg2.connect(host="<host>", user="<user>", dbname="<database>", password="<token>", sslmode="require")
-            conn.autocommit = True
-            with open('lakets.sql') as f:
-                conn.cursor().execute(f.read())
-            ```
-
-            ### Check installed version
-
-            ```sql
-            SELECT version, installed_at FROM lakets._version ORDER BY installed_at DESC LIMIT 1;
-            ```
-          files: |
-            dist/lakets.sql
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ env.VERSION }}" \
+            --title "LakeTS v${{ env.VERSION }}" \
+            --notes-file /tmp/release-notes.md \
+            --generate-notes \
+            dist/lakets.sql \
             dist/lakets.sql.sha256
-          fail_on_unmatched_files: true
-          generate_release_notes: true
