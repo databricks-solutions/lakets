@@ -15,10 +15,18 @@ CREATE TABLE IF NOT EXISTS lakets._version (
 DO $$
 DECLARE
     v_installed       TEXT;
-    v_incoming        TEXT := '__LAKETS_VERSION__';
+    v_incoming        TEXT := coalesce(nullif('__LAKETS_VERSION__', '__LAKE' || 'TS_VERSION__'), '0.1.2');
     v_installed_parts INT[];
     v_incoming_parts  INT[];
 BEGIN
+    SELECT version INTO v_installed
+    FROM lakets._version
+    ORDER BY installed_at DESC
+    LIMIT 1;
+
+    -- Clean up any rows with unresolved build placeholders from prior bad installs
+    DELETE FROM lakets._version WHERE version !~ '^\d+\.\d+\.\d+';
+
     SELECT version INTO v_installed
     FROM lakets._version
     ORDER BY installed_at DESC

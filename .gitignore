@@ -8,6 +8,9 @@ scripts/
 benchmarks/
 grafana/
 
+# Presentations — large binaries, store locally only
+presentations/
+
 # Original nested directory (kept locally)
 lakets/
 
@@ -22,12 +25,19 @@ __pycache__/
 *.pyc
 *.pyo
 .ruff_cache/
+.pytest_cache/
 .venv/
+.venv-*/
 venv/
 *.egg-info/
 
-# Claude Code
+# Claude Code / Claude Terminal
 .claude/
+.claude-terminal
+
+# DrawIO temp/backup files
+.$*.drawio.bkp
+.$*.drawio.dtmp
 
 # IDE
 .idea/
@@ -41,3 +51,5 @@ venv/
 
 # GitHub Actions runner cache
 _actions/
+_PipelineMapping/
+LakeTS/

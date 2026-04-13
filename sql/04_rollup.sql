@@ -132,7 +132,7 @@ BEGIN
     END IF;
 
     -- Serialize concurrent refresh per rollup via advisory lock
-    IF NOT pg_try_advisory_xact_lock('lakets._rollup_registry'::regclass::oid::bigint, v_rec.id) THEN
+    IF NOT pg_try_advisory_xact_lock('lakets._rollup_registry'::regclass::oid::int, v_rec.id) THEN
         RAISE NOTICE 'refresh_rollup: % is already being refreshed by another session, skipping', p_name;
         RETURN FALSE;
     END IF;
@@ -471,7 +471,7 @@ BEGIN
     END IF;
 
     -- Acquire advisory lock to prevent racing with refresh_rollup
-    PERFORM pg_advisory_xact_lock('lakets._rollup_registry'::regclass::oid::bigint, v_rollup_id);
+    PERFORM pg_advisory_xact_lock('lakets._rollup_registry'::regclass::oid::int, v_rollup_id);
 
     -- Clear invalidation log entries for this RollUp
     DELETE FROM lakets._rollup_invalidation_log WHERE rollup_id = v_rollup_id;

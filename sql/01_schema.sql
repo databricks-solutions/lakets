@@ -141,8 +141,11 @@ CREATE TABLE IF NOT EXISTS lakets._downsample_registry (
 -- ---------------------------------------------------------------------------
 
 -- Unique constraint for _ensure_partitions ON CONFLICT target
-ALTER TABLE lakets._chunk_metadata
-    ADD CONSTRAINT uq_chunk_metadata_ct_range UNIQUE (chronotable_id, range_start);
+DO $$ BEGIN
+    ALTER TABLE lakets._chunk_metadata
+        ADD CONSTRAINT uq_chunk_metadata_ct_range UNIQUE (chronotable_id, range_start);
+EXCEPTION WHEN duplicate_table THEN NULL;
+END $$;
 
 -- Index for _touch_chunk_metadata trigger lookup by partition name
 CREATE UNIQUE INDEX IF NOT EXISTS idx_chunk_metadata_chunk_name
