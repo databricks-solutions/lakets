@@ -11,6 +11,9 @@ grafana/
 # Presentations — large binaries, store locally only
 presentations/
 
+# Generated test reports
+tests/TEST_REPORT.md
+
 # Original nested directory (kept locally)
 lakets/
 
