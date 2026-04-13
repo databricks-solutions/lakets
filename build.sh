@@ -24,23 +24,24 @@ BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 # Module concatenation order (matches 99_install.sql)
-# IMPORTANT: 07_shadow_sync.sql comes AFTER 12_ingest.sql (dependency order)
+# Modules are numbered sequentially matching installation order
 MODULES=(
     "00_version.sql"
-    "00_schema.sql"
-    "01_chronotable.sql"
-    "02_timeseries_functions.sql"
-    "03_rollup.sql"
-    "04_compression.sql"
-    "05_retention.sql"
-    "06_monitoring.sql"
+    "01_schema.sql"
+    "02_chronotable.sql"
+    "03_timeseries_functions.sql"
+    "04_rollup.sql"
+    "05_compression.sql"
+    "06_retention.sql"
+    "07_monitoring.sql"
     "08_metric_table.sql"
     "09_lvc.sql"
     "10_downsample.sql"
     "11_alerts.sql"
     "12_ingest.sql"
-    "07_shadow_sync.sql"
-    "13_rollup_optimization.sql"
+    "13_shadow_sync.sql"
+    "14_rollup_optimization.sql"
+    "15_uc_integration.sql"
 )
 
 # Validate all modules exist

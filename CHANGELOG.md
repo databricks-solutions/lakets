@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version
 
 ---
 
+## [0.1.2] - 2026-04-13
+
+### Changed
+
+- **SQL module renumbering** — Renumbered all SQL modules to gap-free sequential order (00-15) for clarity. `00_schema` → `01_schema`, `01_chronotable` → `02_chronotable`, through `14_uc_integration` → `15_uc_integration`. Module install order unchanged.
+- **`build.sh`** — Updated to reference new file numbers.
+- **`99_install.sql`** — Updated include order to match renumbered modules.
+- **`CLAUDE.md`** — Updated module architecture table with new numbering.
+
+### Added
+
+- **`docs/LakeTS_Function_Reference.md`** — Comprehensive function reference document covering all LakeTS public and internal functions.
+
+---
+
 ## [0.1.1] - 2026-03-29
 
 ### Added
@@ -23,7 +38,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version
 - **Partial index `idx_policy_registry_ct_type`** — On `(chronotable_id, policy_type)` WHERE enabled, for compression/retention job performance.
 - **CHECK constraint `valid_export_mode`** — Ensures `export_mode` is either `'full'` or `'incremental'`.
 - **Covering index `idx_chunk_metadata_ct_status_range`** — Replaces `idx_chunk_metadata_ct_status` with a covering index including `range_start` and `range_end`.
-- **`sql/14_uc_integration.sql`** — Unity Catalog Integration module: `register_uc_table()`, `tag_uc_table()`, `get_uc_registrations()`, `unregister_uc_table()`, and `_uc_registry` metadata table for tracking Delta exports in Unity Catalog.
+- **`sql/15_uc_integration.sql`** — Unity Catalog Integration module: `register_uc_table()`, `tag_uc_table()`, `get_uc_registrations()`, `unregister_uc_table()`, and `_uc_registry` metadata table for tracking Delta exports in Unity Catalog.
 - **`databricks/workflows/uc_registration.py`** — Workflow job that ensures Delta tables exist in Unity Catalog and applies tags via the Databricks REST API.
 - **`sql/migrate.sql`** — Migration runner for upgrading existing installations without a full reinstall.
 - **`migrations/V010_V011_security_hardening.sql`** — Idempotent migration script (v0.1.0 → v0.1.1): adds missing DDL tables, indexes, columns, and records the upgrade in `_version`.

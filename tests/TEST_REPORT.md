@@ -23,19 +23,19 @@
 
 | # | Test Suite | Module(s) | Tests | Passed | Status |
 |---|-----------|-----------|-------|--------|--------|
-| 1 | test_chronotable | 01_chronotable | 8 | 8 | PASS |
-| 2 | test_timeseries_functions | 02_timeseries_functions | 20 | 20 | PASS |
-| 3 | test_rollup | 03_rollup | 12 | 12 | PASS |
-| 4 | test_compression | 04_compression | 6 | 6 | PASS |
-| 5 | test_retention | 05_retention | 6 | 6 | PASS |
-| 6 | test_monitoring | 06_monitoring | 7 | 7 | PASS |
-| 7 | test_shadow_sync | 07_shadow_sync | 5 | 5 | PASS |
+| 1 | test_chronotable | 02_chronotable | 8 | 8 | PASS |
+| 2 | test_timeseries_functions | 03_timeseries_functions | 20 | 20 | PASS |
+| 3 | test_rollup | 04_rollup | 12 | 12 | PASS |
+| 4 | test_compression | 05_compression | 6 | 6 | PASS |
+| 5 | test_retention | 06_retention | 6 | 6 | PASS |
+| 6 | test_monitoring | 07_monitoring | 7 | 7 | PASS |
+| 7 | test_shadow_sync | 13_shadow_sync | 5 | 5 | PASS |
 | 8 | test_metric_table | 08_metric_table | 7 | 7 | PASS |
 | 9 | test_lvc | 09_lvc | 5 | 5 | PASS |
 | 10 | test_downsample | 10_downsample | 6 | 6 | PASS |
 | 11 | test_alerts | 11_alerts | 4 | 4 | PASS |
 | 12 | test_ingest | 12_ingest | 7 | 7 | PASS |
-| 13 | test_rollup_optimization | 13_rollup_optimization | 25 | 25 | PASS |
+| 13 | test_rollup_optimization | 14_rollup_optimization | 25 | 25 | PASS |
 | 14 | test_security_hardening | Schema, indexes, constraints | 13 | 13 | PASS |
 | 15 | test_python_patterns | Python workflow patterns | 15 | 15 | PASS |
 
@@ -232,20 +232,20 @@
 
 ### 1. `_inject_time_predicate` PCRE vs POSIX regex (CRITICAL)
 
-**File:** `sql/13_rollup_optimization.sql`
+**File:** `sql/14_rollup_optimization.sql`
 **Issue:** Used `\b` for word boundaries (PCRE syntax), but PostgreSQL uses POSIX regex where `\b` means backspace character. This caused the regex to never match, making the function always fall back to the original query without predicate injection.
 **Fix:** Replaced `\b` with `\y` (PostgreSQL's POSIX word boundary).
 **Impact:** Scan-level partition pruning was silently disabled for all rollup refresh operations.
 
 ### 2. `_ensure_partitions` parameter name mismatch
 
-**File:** `sql/01_chronotable.sql`
+**File:** `sql/02_chronotable.sql`
 **Issue:** Database had old function signature with `p_hypertable_id` parameter while code used `p_chronotable_id`.
 **Fix:** Dropped old function signature before reinstall.
 
 ### 3. `_first_last_state` type not idempotent
 
-**File:** `sql/02_timeseries_functions.sql`
+**File:** `sql/03_timeseries_functions.sql`
 **Issue:** `CREATE TYPE` doesn't support `IF NOT EXISTS`. Repeated installs failed.
 **Fix:** Added conditional drop+recreate block.
 
@@ -273,21 +273,22 @@
 
 | Module | SQL File | Test File | Functions Tested |
 |--------|----------|-----------|-----------------|
-| 00 Schema | 00_schema.sql | (implicit) | Schema creation verified by all tests |
-| 01 ChronoTable | 01_chronotable.sql | test_chronotable.sql | create_chronotable, drop_chunks, alter_chunk_interval |
-| 02 Time-Series Functions | 02_timeseries_functions.sql | test_timeseries_functions.sql | time_bucket, first, last, gapfill, locf, interpolate, delta, rate, histogram |
-| 03 RollUp Engine | 03_rollup.sql | test_rollup.sql | create_rollup, refresh_rollup, drop_rollup, show_rollups, invalidate_rollup_range |
-| 04 Compression | 04_compression.sql | test_compression.sql | add/remove/show_compression_policy, compress/decompress_chunk |
-| 05 Retention | 05_retention.sql | test_retention.sql | add/remove/show_retention_policy, apply_retention |
-| 06 Monitoring | 06_monitoring.sql | test_monitoring.sql | lakets_metrics, chunk_health, query_stats |
-| 07 Shadow Sync | 07_shadow_sync.sql | test_shadow_sync.sql | enable_sync, disable_sync, shadow table forwarding |
+| 00 Version | 00_version.sql | (implicit) | Version tracking verified by install |
+| 01 Schema | 01_schema.sql | (implicit) | Schema creation verified by all tests |
+| 02 ChronoTable | 02_chronotable.sql | test_chronotable.sql | create_chronotable, drop_chunks, alter_chunk_interval |
+| 03 Time-Series Functions | 03_timeseries_functions.sql | test_timeseries_functions.sql | time_bucket, first, last, gapfill, locf, interpolate, delta, rate, histogram |
+| 04 RollUp Engine | 04_rollup.sql | test_rollup.sql | create_rollup, refresh_rollup, drop_rollup, show_rollups, invalidate_rollup_range |
+| 05 Compression | 05_compression.sql | test_compression.sql | add/remove/show_compression_policy, compress/decompress_chunk |
+| 06 Retention | 06_retention.sql | test_retention.sql | add/remove/show_retention_policy, apply_retention |
+| 07 Monitoring | 07_monitoring.sql | test_monitoring.sql | lakets_metrics, chunk_health, query_stats |
 | 08 Metric Table | 08_metric_table.sql | test_metric_table.sql | create_metric_table, cardinality checks, index creation |
 | 09 LVC | 09_lvc.sql | test_lvc.sql | enable/disable_lvc, cache upsert, stats |
 | 10 Downsample | 10_downsample.sql | test_downsample.sql | create/drop_downsample_pipeline, query_auto_resolution |
 | 11 Alerts | 11_alerts.sql | test_alerts.sql | check_alerts, deadman_switch |
 | 12 Ingest | 12_ingest.sql | test_ingest.sql | ingest_batch, ingest_prometheus |
-| 13 RollUp Optimization | 13_rollup_optimization.sql | test_rollup_optimization.sql | All M23-M28 functions (25 tests) |
-| 14 Hardening | 00_schema, 01_chronotable, 11_alerts | test_security_hardening.sql | Schema completeness, indexes, constraints, input validation |
+| 13 Shadow Sync | 13_shadow_sync.sql | test_shadow_sync.sql | enable_sync, disable_sync, shadow table forwarding |
+| 14 RollUp Optimization | 14_rollup_optimization.sql | test_rollup_optimization.sql | All M23-M28 functions (25 tests) |
+| 15 Hardening | 01_schema, 02_chronotable, 11_alerts | test_security_hardening.sql | Schema completeness, indexes, constraints, input validation |
 | 15 Python Patterns | databricks/workflows/*.py | test_python_patterns.py | SQL query construction safety, connection handling |
 
 ---

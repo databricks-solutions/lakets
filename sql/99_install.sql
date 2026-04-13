@@ -12,49 +12,49 @@
 \ir 00_version.sql
 
 -- Step 1: Core schema and metadata tables
-\ir 00_schema.sql
+\ir 01_schema.sql
 
 -- Step 2: ChronoTable management functions
-\ir 01_chronotable.sql
+\ir 02_chronotable.sql
 
 -- Step 3: Time Series Functions (time_bucket, first, last, gapfill, locf, interpolate, delta, rate, histogram)
-\ir 02_timeseries_functions.sql
+\ir 03_timeseries_functions.sql
 
 -- Step 4: RollUp Engine (incremental time-bucketed aggregations)
-\ir 03_rollup.sql
+\ir 04_rollup.sql
 
 -- Step 5: Compression & tiering policies
-\ir 04_compression.sql
+\ir 05_compression.sql
 
 -- Step 6: Retention policies
-\ir 05_retention.sql
+\ir 06_retention.sql
 
 -- Step 7: Monitoring & metrics
-\ir 06_monitoring.sql
+\ir 07_monitoring.sql
 
--- Step 8: Multi-Metric ChronoTables + cardinality (V2)
+-- Step 8: Multi-Metric ChronoTables + cardinality
 \ir 08_metric_table.sql
 
--- Step 9: Last Value Cache (V2)
+-- Step 9: Last Value Cache
 \ir 09_lvc.sql
 
--- Step 10: Downsampling pipeline registry (V2)
+-- Step 10: Downsampling pipeline registry
 \ir 10_downsample.sql
 
--- Step 11: Alert rules (V2)
+-- Step 11: Alert rules
 \ir 11_alerts.sql
 
--- Step 12: Bulk ingest + Prometheus ingest (V2)
+-- Step 12: Bulk ingest + Prometheus ingest
 \ir 12_ingest.sql
 
 -- Step 13: Shadow sync for Lakehouse Sync
-\ir 07_shadow_sync.sql
+\ir 13_shadow_sync.sql
 
--- Step 14: RollUp Optimization — Modules 23–28
-\ir 13_rollup_optimization.sql
+-- Step 14: RollUp Optimization — Modules 23-28
+\ir 14_rollup_optimization.sql
 
--- Step 15: Unity Catalog Integration — Module 14
-\ir 14_uc_integration.sql
+-- Step 15: Unity Catalog Integration
+\ir 15_uc_integration.sql
 
 -- Verify installation
 DO $$
