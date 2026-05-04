@@ -337,6 +337,117 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- drop_chronotable: Drops a ChronoTable and all associated objects.
+-- Cleans up: LVC cache, shadow sync, rollups (views + tables), policies,
+-- downsample pipelines, chunk metadata, and the registry entry.
+-- The physical table is dropped with CASCADE (removes all partitions).
+-- Idempotent — safe to call even if some objects were already removed.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets.drop_chronotable(
+    p_table_name TEXT,
+    p_schema_name TEXT DEFAULT 'public'
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_ct_id INT;
+    v_rollup RECORD;
+    v_lvc RECORD;
+    v_shadow TEXT;
+    v_ds RECORD;
+BEGIN
+    -- Look up the ChronoTable
+    SELECT id INTO v_ct_id
+    FROM lakets._chronotable_registry
+    WHERE schema_name = p_schema_name AND table_name = p_table_name;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Table %.% is not a registered ChronoTable',
+            p_schema_name, p_table_name;
+    END IF;
+
+    -- 1. Drop RollUps that source from this ChronoTable
+    FOR v_rollup IN
+        SELECT name, rollup_table, realtime_view
+        FROM lakets._rollup_registry
+        WHERE source_chronotable_id = v_ct_id
+    LOOP
+        -- Drop export config first (if M28 columns exist)
+        BEGIN
+            UPDATE lakets._rollup_registry
+            SET export_enabled = FALSE
+            WHERE name = v_rollup.name;
+        EXCEPTION WHEN undefined_column THEN NULL;
+        END;
+
+        EXECUTE format('DROP VIEW IF EXISTS public.%I', v_rollup.realtime_view);
+        EXECUTE format('DROP TABLE IF EXISTS public.%I', v_rollup.rollup_table);
+
+        RAISE NOTICE 'Dropped RollUp: %', v_rollup.name;
+    END LOOP;
+
+    -- 2. Disable LVC (drop cache table + trigger)
+    FOR v_lvc IN
+        SELECT cache_table_name
+        FROM lakets._lvc_registry
+        WHERE chronotable_id = v_ct_id
+    LOOP
+        BEGIN
+            EXECUTE format(
+                'DROP TRIGGER IF EXISTS trg_lakets_lvc ON %I.%I',
+                p_schema_name, p_table_name
+            );
+        EXCEPTION WHEN undefined_object THEN NULL;
+        END;
+
+        EXECUTE format('DROP TABLE IF EXISTS public.%I', v_lvc.cache_table_name);
+
+        RAISE NOTICE 'Dropped LVC cache: %', v_lvc.cache_table_name;
+    END LOOP;
+
+    -- 3. Disable shadow sync (drop shadow table + trigger)
+    SELECT shadow_table_name INTO v_shadow
+    FROM lakets._chronotable_registry
+    WHERE id = v_ct_id AND sync_enabled = TRUE;
+
+    IF v_shadow IS NOT NULL THEN
+        BEGIN
+            EXECUTE format(
+                'DROP TRIGGER IF EXISTS trg_lakets_sync ON %I.%I',
+                p_schema_name, p_table_name
+            );
+        EXCEPTION WHEN undefined_object THEN NULL;
+        END;
+
+        EXECUTE format('DROP TABLE IF EXISTS public.%I', v_shadow);
+
+        RAISE NOTICE 'Dropped shadow table: %', v_shadow;
+    END IF;
+
+    -- 4. Remove downsample pipelines referencing this table
+    FOR v_ds IN
+        SELECT id, name
+        FROM lakets._downsample_registry
+        WHERE source_table = p_table_name AND source_schema = p_schema_name
+    LOOP
+        DELETE FROM lakets._downsample_registry WHERE id = v_ds.id;
+        RAISE NOTICE 'Removed downsample pipeline: %', v_ds.name;
+    END LOOP;
+
+    -- 5. Delete the registry entry (ON DELETE CASCADE cleans:
+    --    _chunk_metadata, _rollup_registry, _rollup_invalidation_log,
+    --    _policy_registry, _lvc_registry)
+    DELETE FROM lakets._chronotable_registry WHERE id = v_ct_id;
+
+    -- 6. Drop the physical table (CASCADE drops all partitions)
+    EXECUTE format('DROP TABLE IF EXISTS %I.%I CASCADE', p_schema_name, p_table_name);
+
+    RAISE NOTICE 'Dropped ChronoTable: %.%', p_schema_name, p_table_name;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- create_chronotable: V2 alias for create_hypertable.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION lakets.create_chronotable(
