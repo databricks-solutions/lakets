@@ -398,13 +398,13 @@ code {
 }
 
 .table-of-contents__link:hover {
-  color: var(--ifm-color-secondary);
+  color: var(--ifm-color-primary);
 }
 
 .table-of-contents__link--active {
-  font-weight: 600;
-  color: var(--ifm-color-secondary);
-  border-left-color: var(--ifm-color-secondary);
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+  border-left-color: var(--ifm-color-primary);
 }
 
 /* "Pro Tip" callout under the TOC — injected via ::after on the
@@ -563,6 +563,86 @@ code {
 .markdown table td,
 .markdown table th {
   padding: 0.75rem 1rem;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Decorative background gradients — Stitch refined design adds soft
+ * corner glows on doc pages to break up the flat dark surface.
+ * ────────────────────────────────────────────────────────────────────── */
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  z-index: -1;
+  filter: blur(80px);
+  opacity: 0.4;
+}
+
+body::before {
+  top: -10%;
+  right: -10%;
+  width: 40vw;
+  height: 50vh;
+  background: radial-gradient(
+    ellipse at top right,
+    rgba(255, 92, 77, 0.12) 0%,
+    transparent 70%
+  );
+}
+
+body::after {
+  bottom: -10%;
+  left: -10%;
+  width: 30vw;
+  height: 40vh;
+  background: radial-gradient(
+    ellipse at bottom left,
+    rgba(121, 209, 255, 0.08) 0%,
+    transparent 70%
+  );
+}
+
+[data-theme="light"] body::before,
+[data-theme="light"] body::after {
+  opacity: 0.6;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Admonitions — Stitch "PostgreSQL Compatibility" callout pattern.
+ * Left border in the variant color, content uses primary-container tint.
+ * Affects all Docusaurus admonition kinds (note, tip, info, caution,
+ * danger) which render as .alert blocks.
+ * ────────────────────────────────────────────────────────────────────── */
+
+.theme-admonition,
+.alert {
+  border-left-width: 4px;
+  border-radius: 0 0.75rem 0.75rem 0;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 92, 77, 0.08);
+}
+
+.theme-admonition .admonitionHeading_node_modules-\@docusaurus-theme-classic-lib-theme-Admonition-Layout-styles-module,
+.theme-admonition [class*="admonitionHeading"] {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Doc page header polish — version chip pattern from refined Stitch API
+ * ────────────────────────────────────────────────────────────────────── */
+
+.markdown h1:first-child + p,
+.markdown h1:first-child + p:first-of-type {
+  font-size: 1.125rem;
+  line-height: 1.75;
+  color: var(--ifm-color-content-secondary);
+  margin-bottom: 2rem;
 }
 
 /* ──────────────────────────────────────────────────────────────────────
