@@ -1,0 +1,39 @@
+[sqlfluff]
+dialect = postgres
+templater = raw
+exclude_rules = LT05, LT09, AM05, ST05, ST06, RF02, RF04, CV05, AL07
+# LT05: long lines (legacy SQL files have intentionally long INSERT/CASE lines)
+# LT09: leading comma style (we use trailing commas)
+# AM05: implicit join (acceptable in PL/pgSQL bodies)
+# ST05: subquery (false positives on CTEs in rollup queries)
+# ST06: column ordering (sqlfluff misreads PL/pgSQL DO blocks)
+# RF02: ambiguous column reference (false positives on JOIN with aliased columns)
+# RF04: keywords as identifiers (lakets uses `time`, `value`, etc. as column names by convention)
+# CV05: NULL comparison (we use `IS NULL` consistently)
+# AL07: aliasing (we don't alias schema in PL/pgSQL)
+max_line_length = 200
+
+[sqlfluff:indentation]
+indented_joins = false
+indented_using_on = true
+tab_space_size = 4
+
+[sqlfluff:rules]
+allow_scalar = true
+single_table_references = consistent
+unquoted_identifiers_policy = aliases
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.identifiers]
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.functions]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.literals]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.types]
+extended_capitalisation_policy = upper
