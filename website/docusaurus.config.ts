@@ -49,6 +49,7 @@ const config: Config = {
       "classic",
       {
         docs: {
+          routeBasePath: "/",
           sidebarPath: "./sidebars.ts",
           editUrl:
             "https://github.com/databricks-solutions/lakets/edit/main/website/",
@@ -96,7 +97,10 @@ const config: Config = {
         {
           title: "Docs",
           items: [
-            { label: "Getting Started", to: "/docs/intro" },
+            { label: "Introduction", to: "/" },
+            { label: "Getting Started", to: "/guides/getting-started" },
+            { label: "How It Works", to: "/guides/how-it-works" },
+            { label: "API Reference", to: "/reference/api-reference" },
           ],
         },
         {
@@ -123,10 +127,14 @@ const config: Config = {
               label: "Releases",
               href: "https://github.com/databricks-solutions/lakets/releases",
             },
+            {
+              label: "License",
+              href: "https://github.com/databricks-solutions/lakets/blob/main/LICENSE.md",
+            },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Databricks, Inc. Licensed under the Databricks License.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Databricks, Inc. Licensed under the <a href="https://github.com/databricks-solutions/lakets/blob/main/LICENSE.md" style="color:inherit;text-decoration:underline">Databricks License</a>.`,
     },
     prism: {
       theme: prismThemes.oneLight,

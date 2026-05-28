@@ -1,4 +1,11 @@
-# LakeTS v0.1.1 — Complete Function Reference
+---
+title: Function Reference
+sidebar_label: Function Reference
+sidebar_position: 2
+description: Complete reference for all 77 LakeTS functions, 2 custom aggregates, 6 triggers, and 9 metadata tables.
+---
+
+# LakeTS v0.1.2 — Complete Function Reference
 
 ## Technical Deep-Dive for Engineers & Solution Architects
 
@@ -1269,5 +1276,5 @@ These scheduled Databricks jobs drive the operational lifecycle of LakeTS:
 
 ---
 
-*LakeTS v0.1.1 — Pure SQL Time Series for Databricks Lakebase*
+*LakeTS v0.1.2 — Pure SQL Time Series for Databricks Lakebase*
 *All objects in the `lakets` schema. PostgreSQL 16+ required. No extensions.*

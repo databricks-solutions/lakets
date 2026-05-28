@@ -1,3 +1,10 @@
+---
+title: How It Works
+sidebar_label: How It Works
+sidebar_position: 2
+description: A deep dive into LakeTS internals — ChronoTables, RollUps, Lakehouse Sync, and the hot/cold tier hybrid architecture.
+---
+
 # How LakeTS Works
 
 A deep dive into how LakeTS turns Databricks Lakebase into a full-featured time series database — explained simply.

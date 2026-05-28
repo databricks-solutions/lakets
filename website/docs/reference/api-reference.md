@@ -1,3 +1,10 @@
+---
+title: API Reference
+sidebar_label: API Reference
+sidebar_position: 1
+description: Public LakeTS function signatures organized by area — ChronoTables, RollUps, LVC, ingest, alerts, monitoring.
+---
+
 # LakeTS API Reference
 
 All functions live in the `lakets` schema. Internal functions prefixed with `_` are not part of the public API.
@@ -166,7 +173,7 @@ lakets.histogram(
 
 ## RollUp Engine (Incremental Aggregates)
 
-> Replaces the original Continuous Aggregates (Module 3). See [PRD: Incremental RollUp Engine](../../PRD_LakeTS_Incremental_Refresh.md).
+> Replaces the original Continuous Aggregates (Module 3). The design rationale is documented in the internal PRD `PRD_LakeTS_Incremental_Refresh.md`.
 
 ### `lakets.create_rollup`
 Creates a RollUp Table with initial full load and unique index.

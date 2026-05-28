@@ -1,3 +1,10 @@
+---
+title: Lakehouse Sync Setup
+sidebar_label: Lakehouse Sync Setup
+sidebar_position: 3
+description: Stream data from Lakebase to Delta Lake via CDC using the wal2delta extension.
+---
+
 # Lakehouse Sync Setup for LakeTS
 
 Lakehouse Sync streams data from Lakebase to Delta Lake via CDC (Change Data Capture) using the `wal2delta` extension. This enables:
