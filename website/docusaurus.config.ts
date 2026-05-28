@@ -22,6 +22,28 @@ const config: Config = {
     locales: ["en"],
   },
 
+  // Stitch "Lakehouse Technical Documentation" theme fonts
+  stylesheets: [
+    {
+      href: "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap",
+      type: "text/css",
+    },
+  ],
+  headTags: [
+    {
+      tagName: "link",
+      attributes: { rel: "preconnect", href: "https://fonts.googleapis.com" },
+    },
+    {
+      tagName: "link",
+      attributes: {
+        rel: "preconnect",
+        href: "https://fonts.gstatic.com",
+        crossorigin: "true",
+      },
+    },
+  ],
+
   presets: [
     [
       "classic",
@@ -43,6 +65,10 @@ const config: Config = {
 
   themeConfig: {
     image: "img/social-card.png",
+    colorMode: {
+      defaultMode: "dark",
+      respectPrefersColorScheme: true,
+    },
     navbar: {
       title: "LakeTS",
       items: [
@@ -103,8 +129,8 @@ const config: Config = {
       copyright: `Copyright © ${new Date().getFullYear()} Databricks, Inc. Licensed under the Databricks License.`,
     },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
+      theme: prismThemes.oneLight,
+      darkTheme: prismThemes.oneDark,
       additionalLanguages: ["sql", "bash", "python"],
     },
   } satisfies Preset.ThemeConfig,

@@ -1,27 +1,347 @@
 /**
- * Docusaurus theme customizations for the LakeTS docs site.
- * Infima utility-class system docs: https://infima.dev/
+ * LakeTS — Lakehouse Technical Documentation theme.
+ *
+ * Translated from the Stitch design system
+ * (projects/10067549973504610213, "Lakehouse Technical Documentation").
+ *
+ * - Type: DM Sans (prose, headings, UI) + JetBrains Mono (code, labels).
+ * - Palette: Databricks Orange primary on layered dark surfaces; light mode
+ *   uses the same brand orange against clean white.
+ * - Shapes: 4px small / 8px container roundedness.
+ * - Layout: 1280px container max, 280px sidebar.
+ * - Header: translucent glassmorphic background blur.
+ * - Shadows: tinted, diffuse "primary glow" rather than physical drop shadows.
  */
 
+/* ──────────────────────────────────────────────────────────────────────
+ * Design tokens
+ * ────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --ifm-color-primary: #2563eb;
-  --ifm-color-primary-dark: #1d4ed8;
-  --ifm-color-primary-darker: #1e40af;
-  --ifm-color-primary-darkest: #1e3a8a;
-  --ifm-color-primary-light: #3b82f6;
-  --ifm-color-primary-lighter: #60a5fa;
-  --ifm-color-primary-lightest: #93c5fd;
-  --ifm-code-font-size: 92%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  /* Brand */
+  --lakets-brand: #ff3621;            /* Databricks Orange */
+  --lakets-brand-soft: #ff5c4d;       /* Dark-mode primary */
+  --lakets-brand-deep: #b4261f;       /* Inverse */
+  --lakets-secondary: #00a8e0;        /* Technical blue */
+  --lakets-tertiary: #6366f1;         /* Indigo accent */
+
+  /* Type */
+  --ifm-font-family-base: "DM Sans", system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ifm-heading-font-family: "DM Sans", system-ui, sans-serif;
+  --ifm-font-family-monospace: "JetBrains Mono", ui-monospace, SFMono-Regular,
+    Menlo, Consolas, "Liberation Mono", monospace;
+
+  --ifm-font-size-base: 16px;
+  --ifm-line-height-base: 1.625;
+  --ifm-code-font-size: 87.5%;
+
+  --ifm-heading-font-weight: 700;
+  --ifm-h1-font-size: 2.5rem;          /* 40 */
+  --ifm-h2-font-size: 1.75rem;         /* 28 */
+  --ifm-h3-font-size: 1.375rem;        /* 22 */
+  --ifm-h4-font-size: 1.125rem;        /* 18 */
+
+  /* Shape */
+  --ifm-button-border-radius: 0.25rem;
+  --ifm-code-border-radius: 0.25rem;
+  --ifm-card-border-radius: 0.5rem;
+  --ifm-pre-border-radius: 0.5rem;
+  --ifm-global-radius: 0.5rem;
+
+  /* Layout */
+  --ifm-container-width-xl: 1280px;
+  --doc-sidebar-width: 280px;
+  --ifm-spacing-horizontal: 24px;     /* 24 gutter */
+
+  /* Code block */
+  --ifm-pre-padding: 1rem 1.25rem;
 }
 
+/* ──────────────────────────────────────────────────────────────────────
+ * Light mode (override-* values from the Stitch design MD)
+ * ────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --ifm-color-primary: #ff3621;
+  --ifm-color-primary-dark: #f02500;
+  --ifm-color-primary-darker: #e22300;
+  --ifm-color-primary-darkest: #ba1d00;
+  --ifm-color-primary-light: #ff513a;
+  --ifm-color-primary-lighter: #ff5e4a;
+  --ifm-color-primary-lightest: #ff8a7a;
+
+  --ifm-color-secondary: #00a8e0;
+  --ifm-color-success: #16a34a;
+  --ifm-color-info: #00a8e0;
+  --ifm-color-warning: #f59e0b;
+  --ifm-color-danger: #ef4444;
+
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: #ffffff;
+  --ifm-color-content: #1b2533;       /* Obsidian body text */
+  --ifm-color-content-secondary: #5a6478;
+
+  --ifm-navbar-background-color: rgba(255, 255, 255, 0.72);
+  --ifm-navbar-shadow: 0 1px 0 rgba(27, 37, 51, 0.06);
+  --ifm-footer-background-color: #f6f7fa;
+  --ifm-footer-color: #1b2533;
+  --ifm-footer-link-color: #1b2533;
+
+  --ifm-toc-border-color: rgba(27, 37, 51, 0.08);
+  --ifm-color-emphasis-200: rgba(27, 37, 51, 0.08);
+  --ifm-color-emphasis-300: rgba(27, 37, 51, 0.16);
+
+  --ifm-code-background: rgba(27, 37, 51, 0.06);
+  --ifm-pre-background: #f5f6f8;
+
+  --docusaurus-highlighted-code-line-bg: rgba(255, 54, 33, 0.08);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Dark mode — Stitch palette (surface-*, on-surface-*, etc.)
+ * ────────────────────────────────────────────────────────────────────── */
+
 [data-theme="dark"] {
-  --ifm-color-primary: #60a5fa;
-  --ifm-color-primary-dark: #3b82f6;
-  --ifm-color-primary-darker: #2563eb;
-  --ifm-color-primary-darkest: #1d4ed8;
-  --ifm-color-primary-light: #93c5fd;
-  --ifm-color-primary-lighter: #bfdbfe;
-  --ifm-color-primary-lightest: #dbeafe;
-  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.1);
+  --ifm-color-primary: #ffb4aa;
+  --ifm-color-primary-dark: #ff9587;
+  --ifm-color-primary-darker: #ff8474;
+  --ifm-color-primary-darkest: #ff5c4d;
+  --ifm-color-primary-light: #ffd3cd;
+  --ifm-color-primary-lighter: #ffded8;
+  --ifm-color-primary-lightest: #fff1ef;
+
+  --ifm-color-secondary: #79d1ff;
+  --ifm-color-success: #4ade80;
+  --ifm-color-info: #79d1ff;
+  --ifm-color-warning: #fbbf24;
+  --ifm-color-danger: #ffb4ab;
+
+  /* Stitch surface tokens */
+  --lakets-surface: #0c1322;
+  --lakets-surface-bright: #323949;
+  --lakets-surface-container-lowest: #070e1d;
+  --lakets-surface-container-low: #141b2b;
+  --lakets-surface-container: #191f2f;
+  --lakets-surface-container-high: #232a3a;
+  --lakets-surface-container-highest: #2e3545;
+  --lakets-on-surface: #dce2f7;
+  --lakets-on-surface-variant: #aab0c4;
+  --lakets-outline: #4a5160;
+
+  --ifm-background-color: var(--lakets-surface);
+  --ifm-background-surface-color: var(--lakets-surface-container-low);
+  --ifm-color-content: var(--lakets-on-surface);
+  --ifm-color-content-secondary: var(--lakets-on-surface-variant);
+
+  --ifm-navbar-background-color: rgba(12, 19, 34, 0.72);
+  --ifm-navbar-shadow: 0 1px 0 rgba(220, 226, 247, 0.08);
+  --ifm-footer-background-color: var(--lakets-surface-container-lowest);
+  --ifm-footer-color: var(--lakets-on-surface);
+  --ifm-footer-link-color: var(--lakets-on-surface);
+
+  --ifm-toc-border-color: rgba(220, 226, 247, 0.08);
+  --ifm-color-emphasis-200: rgba(220, 226, 247, 0.06);
+  --ifm-color-emphasis-300: rgba(220, 226, 247, 0.12);
+
+  --ifm-code-background: rgba(255, 180, 170, 0.08);
+  --ifm-pre-background: var(--lakets-surface-container);
+
+  --docusaurus-highlighted-code-line-bg: rgba(255, 92, 77, 0.12);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Glassmorphic navbar (Stitch: 20px blur, low-opacity border)
+ * ────────────────────────────────────────────────────────────────────── */
+
+.navbar {
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--ifm-toc-border-color);
+}
+
+.navbar__title,
+.navbar__brand {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.navbar__link {
+  font-weight: 500;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Headings — tighter tracking, heavier weight (Stitch typography scale)
+ * ────────────────────────────────────────────────────────────────────── */
+
+h1,
+.markdown h1:first-child {
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+h2,
+h3,
+h4 {
+  letter-spacing: -0.01em;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Code blocks — JetBrains Mono, 8px radius, surface-container background
+ * ────────────────────────────────────────────────────────────────────── */
+
+pre,
+code {
+  font-family: var(--ifm-font-family-monospace);
+}
+
+.prism-code,
+pre code {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+code {
+  border: 1px solid var(--ifm-color-emphasis-200);
+}
+
+/* Inline code chip styling per Stitch "data-bit" labels */
+:not(pre) > code {
+  padding: 0.125rem 0.375rem;
+  font-weight: 500;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Sidebar & TOC — active-state left border highlight (Stitch ToC pattern)
+ * ────────────────────────────────────────────────────────────────────── */
+
+.menu__link {
+  border-radius: 0.25rem;
+  font-weight: 500;
+}
+
+.menu__link--active:not(.menu__link--sublist) {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 54, 33, 0.12) 0%,
+    transparent 100%
+  );
+  border-left: 2px solid var(--ifm-color-primary);
+  padding-left: calc(var(--ifm-menu-link-padding-horizontal) - 2px);
+}
+
+.table-of-contents__link--active {
+  font-weight: 600;
+  color: var(--ifm-color-primary);
+}
+
+.table-of-contents__link {
+  border-left: 2px solid transparent;
+  padding-left: 0.5rem;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.table-of-contents__link--active {
+  border-left-color: var(--ifm-color-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Buttons (Stitch: solid primary, outlined secondary, ghost)
+ * ────────────────────────────────────────────────────────────────────── */
+
+.button--primary {
+  background-color: var(--ifm-color-primary);
+  border-color: var(--ifm-color-primary);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.button--primary:hover {
+  background-color: var(--ifm-color-primary-dark);
+  border-color: var(--ifm-color-primary-dark);
+}
+
+.button--secondary {
+  background-color: transparent;
+  border: 1px solid var(--ifm-color-secondary);
+  color: var(--ifm-color-secondary);
+  font-weight: 600;
+}
+
+.button--secondary:hover {
+  background-color: rgba(0, 168, 224, 0.08);
+  color: var(--ifm-color-secondary);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Cards / admonitions — soft container radius + subtle primary tint
+ * ────────────────────────────────────────────────────────────────────── */
+
+.theme-doc-markdown article > div[class*="admonition"],
+.alert {
+  border-radius: 0.5rem;
+  border-width: 1px;
+}
+
+.card {
+  border-radius: 0.5rem;
+  background-color: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  box-shadow: 0 1px 2px rgba(255, 54, 33, 0.04);
+}
+
+[data-theme="dark"] .card {
+  box-shadow: 0 1px 2px rgba(255, 92, 77, 0.05);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Chips / tags (Stitch: monospaced label-sm with sharper radius)
+ * ────────────────────────────────────────────────────────────────────── */
+
+.badge {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  border-radius: 2px;
+  padding: 0.125rem 0.375rem;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Pagination & footer
+ * ────────────────────────────────────────────────────────────────────── */
+
+.pagination-nav__link {
+  border-radius: 0.5rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  transition: border-color 120ms ease;
+}
+
+.pagination-nav__link:hover {
+  border-color: var(--ifm-color-primary);
+}
+
+.footer--dark {
+  background-color: var(--lakets-surface-container-lowest, #070e1d);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Misc polish
+ * ────────────────────────────────────────────────────────────────────── */
+
+article a:not(.button):not(.card) {
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 1px;
+}
+
+article a:not(.button):not(.card):hover {
+  text-decoration-thickness: 2px;
+}
+
+::selection {
+  background-color: rgba(255, 54, 33, 0.25);
+}
+
+[data-theme="dark"] ::selection {
+  background-color: rgba(255, 92, 77, 0.32);
 }
