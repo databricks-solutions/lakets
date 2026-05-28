@@ -276,6 +276,7 @@ code {
 
 /* Sidebar — Stitch uses 280px fixed sidebar with rounded-right pills for
  * each nav item. The active item uses the secondary-container background.
+ * Each link gets a Material Symbol prefix keyed off its URL pattern.
  */
 .theme-doc-sidebar-container {
   border-right: 1px solid var(--ifm-toc-border-color);
@@ -285,7 +286,54 @@ code {
   border-radius: 0 9999px 9999px 0;
   font-weight: 500;
   padding: 0.5rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   transition: background-color 120ms ease, color 120ms ease;
+}
+
+/* Material Symbols icon prefix on each sidebar link, keyed off href */
+.menu__link[href$="/intro"]::before { content: "info"; }
+.menu__link[href*="/guides/getting-started"]::before { content: "rocket_launch"; }
+.menu__link[href*="/guides/how-it-works"]::before { content: "auto_graph"; }
+.menu__link[href*="/guides/lakehouse-sync-setup"]::before { content: "sync_alt"; }
+.menu__link[href*="/reference/api-reference"]::before { content: "api"; }
+.menu__link[href*="/reference/function-reference"]::before { content: "query_stats"; }
+
+.menu__link::before {
+  font-family: "Material Symbols Outlined";
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+/* Categories (Guides / Reference) — uppercase tracked label per the Stitch
+ * "DOCUMENTATION" / "ADVANCED" section headers. Hide the collapse chevron
+ * since Stitch shows a flat hierarchy.
+ */
+.menu__list-item-collapsible > .menu__link[aria-expanded] {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+  opacity: 0.9;
+  cursor: default;
+  background: transparent !important;
+  padding-left: 1.25rem;
+  margin-top: 1rem;
+}
+
+.menu__list-item-collapsible > .menu__link[aria-expanded]::before,
+.menu__caret {
+  display: none;
+}
+
+.menu__list-item-collapsible {
+  background: transparent !important;
 }
 
 .menu__link--active:not(.menu__link--sublist) {
