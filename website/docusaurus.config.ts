@@ -154,14 +154,14 @@ const config: Config = {
       items: [
         {
           to: "/intro",
-          label: "Docs",
+          label: "Documentation",
           position: "left",
           className: "navbar-link-docs",
           activeBaseRegex: "/(intro|guides)",
         },
         {
           to: "/reference/api-reference",
-          label: "API",
+          label: "API Reference",
           position: "left",
           activeBaseRegex: "/reference",
         },
@@ -171,14 +171,10 @@ const config: Config = {
           position: "left",
         },
         {
-          href: "https://github.com/databricks-solutions/lakets/releases",
-          label: "Releases",
-          position: "right",
-        },
-        {
           href: "https://github.com/databricks-solutions/lakets",
           label: "GitHub",
           position: "right",
+          className: "navbar-link-github",
         },
       ],
     },
