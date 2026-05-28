@@ -151,6 +151,20 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────────
+ * Homepage override — hide Docusaurus chrome so the Stitch-styled
+ * header (StitchHeader in src/pages/index.tsx) owns the homepage.
+ * ────────────────────────────────────────────────────────────────────── */
+
+body.stitch-home .navbar,
+body.stitch-home .theme-layout-navbar {
+  display: none !important;
+}
+
+body.stitch-home .main-wrapper {
+  padding-top: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
  * Glassmorphic navbar (Stitch: 20px blur, low-opacity border)
  * ────────────────────────────────────────────────────────────────────── */
 
