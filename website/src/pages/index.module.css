@@ -1,14 +1,84 @@
-/* Lakehouse-themed token classes for the SQL preview code block on the
- * homepage. The colors mirror the Stitch design system. */
+/* Stitch-faithful homepage styles for elements that don't fit Tailwind. */
 
 .root {
-  /* Force the homepage to fill its area regardless of color mode. The
-   * underlying Docusaurus body inherits theme colors; the bg-surface
-   * Tailwind class anchors us to the Stitch dark surface. */
-  min-height: calc(100vh - var(--ifm-navbar-height, 60px));
+  /* The Stitch header replaces Docusaurus's navbar on the homepage. The
+   * body class set by the Home component triggers the actual hide rule in
+   * custom.css (CSS modules mangle local class names, so a global selector
+   * here would not work). */
+  --ifm-navbar-height: 0px;
+  min-height: 100vh;
 }
 
-.tokenKeyword { color: #ffb4aa; font-weight: 600; }
-.tokenString  { color: #ff5c4d; }
+/* Background grid in the hero card */
+.heroGrid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(255, 180, 170, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 180, 170, 0.08) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+}
+
+.heroGlow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 220px;
+  height: 220px;
+}
+
+.heroGlow::before,
+.heroGlow::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+}
+
+.heroGlow::before {
+  inset: 0;
+  background: radial-gradient(circle, #ff5c4d 0%, transparent 60%);
+  opacity: 0.6;
+}
+
+.heroGlow::after {
+  inset: 20px;
+  background: radial-gradient(circle, #79d1ff 0%, transparent 60%);
+  opacity: 0.4;
+}
+
+.heroDelta {
+  position: relative;
+  font-size: 140px !important;
+  color: #ff5c4d;
+  filter: drop-shadow(0 0 24px rgba(255, 92, 77, 0.6));
+}
+
+.demoIcon {
+  font-size: 96px !important;
+  color: #79d1ff;
+  opacity: 0.7;
+  filter: drop-shadow(0 0 24px rgba(121, 209, 255, 0.4));
+}
+
+/* Code scroll bar styling per Stitch design */
+.codeScroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.codeScroll::-webkit-scrollbar-track {
+  background: #191f2f;
+}
+.codeScroll::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 4px;
+}
+
+/* Lakehouse syntax highlighting */
+.tokenKeyword  { color: #ffb4aa; font-weight: 600; }
+.tokenString   { color: #ff5c4d; }
 .tokenFunction { color: #79d1ff; }
-.tokenComment { color: #8a8fa3; font-style: italic; }
+.tokenComment  { color: #aa8985; font-style: italic; }

@@ -23,10 +23,15 @@
     "@docusaurus/module-type-aliases": "^3.6.3",
     "@docusaurus/tsconfig": "^3.6.3",
     "@docusaurus/types": "^3.6.3",
+    "playwright": "^1.60.0",
     "typescript": "~5.6.0"
   },
   "browserslist": {
-    "production": [">0.5%", "not dead", "not op_mini all"],
+    "production": [
+      ">0.5%",
+      "not dead",
+      "not op_mini all"
+    ],
     "development": [
       "last 3 chrome version",
       "last 3 firefox version",
