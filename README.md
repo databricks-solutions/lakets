@@ -27,14 +27,14 @@ LakeTS is a time series toolkit for Databricks Lakebase — pure SQL (PL/pgSQL) 
 
 ### Option A: Single-file install (recommended)
 
-Download the latest release from [GitHub Releases](https://github.com/taranpreetsingh-grover_data/LakeTS/releases):
+Download the latest release from [GitHub Releases](https://github.com/databricks-solutions/lakets/releases):
 
 ```bash
 # Download latest release
-curl -LO https://github.com/taranpreetsingh-grover_data/LakeTS/releases/latest/download/lakets.sql
+curl -LO https://github.com/databricks-solutions/lakets/releases/latest/download/lakets.sql
 
 # Verify checksum
-curl -LO https://github.com/taranpreetsingh-grover_data/LakeTS/releases/latest/download/lakets.sql.sha256
+curl -LO https://github.com/databricks-solutions/lakets/releases/latest/download/lakets.sql.sha256
 sha256sum -c lakets.sql.sha256
 
 # Install on Lakebase
@@ -44,8 +44,8 @@ psql -h <host> -U <user> -d <database> -f lakets.sql
 ### Option B: From source
 
 ```bash
-git clone https://github.com/taranpreetsingh-grover_data/LakeTS.git
-cd LakeTS
+git clone https://github.com/databricks-solutions/lakets.git
+cd lakets
 psql -h <host> -U <user> -d <database> -f sql/99_install.sql
 ```
 

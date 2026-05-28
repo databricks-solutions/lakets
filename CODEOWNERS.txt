@@ -1,0 +1,4 @@
+# Default code owner for the lakets repository.
+# This user must be added as a collaborator (or be a member of an
+# appropriate databricks-solutions team) for code-owner review to work.
+*       @taran-dbx
