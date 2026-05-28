@@ -1,0 +1,61 @@
+name: Feature request
+description: Propose a new capability or enhancement
+title: "feat: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a feature. Please describe the problem first, then your idea.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: |
+        Describe the use case and the current pain. Skip "wouldn't it be cool if" framing —
+        we prioritize concrete, recurring pain.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: SQL API sketch, function signatures, or behavioral description.
+      render: sql
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you weigh? Why was this one chosen?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - ChronoTables
+        - Multi-metric tables
+        - Time series functions
+        - RollUp engine
+        - Compression / Tiering
+        - Retention
+        - Last Value Cache
+        - Lakehouse Sync
+        - Unity Catalog integration
+        - Ingest
+        - Alerts
+        - Monitoring
+        - Other (describe in proposal)
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched existing issues and didn't find a duplicate.
+          required: true
+        - label: This isn't a security report (those go to the private advisory link).
+          required: true

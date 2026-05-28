@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/databricks-solutions/lakets/security/advisories/new
+    about: Report a security issue privately. Do not file a public issue.
+  - name: Question or general discussion
+    url: https://github.com/databricks-solutions/lakets/discussions
+    about: Ask a question or share an idea in Discussions.
