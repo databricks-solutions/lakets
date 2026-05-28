@@ -172,6 +172,51 @@ body.stitch-home .main-wrapper {
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--ifm-toc-border-color);
+  background-color: rgba(12, 19, 34, 0.8);
+  height: 4rem;
+}
+
+[data-theme="light"] .navbar {
+  background-color: rgba(255, 255, 255, 0.72);
+}
+
+/* Logo: prepend a "waves" Material Symbol before "lake ts" wordmark */
+.navbar__title {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--ifm-color-content);
+  font-size: 1.5rem;
+}
+
+.navbar__title::before {
+  content: "waves";
+  font-family: "Material Symbols Outlined";
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--ifm-color-primary);
+  line-height: 1;
+}
+
+/* Nav link spacing + Stitch-style active state */
+.navbar__link {
+  font-weight: 500;
+  color: var(--ifm-color-content-secondary);
+  padding: 0.25rem 0.75rem;
+}
+
+.navbar__link--active,
+.navbar__link.navbar-link-docs:where([href*="/intro"], [href*="/guides"]),
+.navbar__link[href*="/reference"].navbar__link--active {
+  color: var(--ifm-color-primary);
+  font-weight: 700;
+}
+
+.navbar__items--right .navbar__link {
+  color: var(--ifm-color-content-secondary);
+  font-weight: 500;
 }
 
 .navbar__title,
@@ -226,37 +271,250 @@ code {
 }
 
 /* ──────────────────────────────────────────────────────────────────────
- * Sidebar & TOC — active-state left border highlight (Stitch ToC pattern)
+ * Doc-page chrome — match Stitch "Desktop API" reference design
  * ────────────────────────────────────────────────────────────────────── */
 
+/* Sidebar — Stitch uses 280px fixed sidebar with rounded-right pills for
+ * each nav item. The active item uses the secondary-container background.
+ */
+.theme-doc-sidebar-container {
+  border-right: 1px solid var(--ifm-toc-border-color);
+}
+
 .menu__link {
-  border-radius: 0.25rem;
+  border-radius: 0 9999px 9999px 0;
   font-weight: 500;
+  padding: 0.5rem 1.25rem;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 
 .menu__link--active:not(.menu__link--sublist) {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 54, 33, 0.12) 0%,
-    transparent 100%
-  );
-  border-left: 2px solid var(--ifm-color-primary);
-  padding-left: calc(var(--ifm-menu-link-padding-horizontal) - 2px);
+  background: #00a7de;
+  color: #00374d;
+  font-weight: 700;
 }
 
-.table-of-contents__link--active {
-  font-weight: 600;
+[data-theme="dark"] .menu__link--active:not(.menu__link--sublist) {
+  background: #00a7de;
+  color: #00374d;
+}
+
+.menu__list-item-collapsible .menu__link--active {
+  background: transparent;
   color: var(--ifm-color-primary);
+}
+
+/* Sidebar section labels (the "DOCUMENTATION" / "ADVANCED" headers) */
+.menu__list .menu__list .menu__list-item-collapsible > .menu__link {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  color: var(--ifm-color-content-secondary);
+  opacity: 0.7;
+}
+
+/* Right-side TOC ("On this page") — Stitch styling */
+.theme-doc-toc-desktop {
+  border-left: none;
+  padding-left: 1rem;
+}
+
+.table-of-contents {
+  font-size: 0.875rem;
+  border-left: none;
+  padding-left: 0;
+}
+
+.table-of-contents__left-border {
+  display: none;
+}
+
+.table-of-contents::before {
+  content: "On this page";
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ifm-color-content-secondary);
+  margin-bottom: 1rem;
+  padding-left: 1rem;
 }
 
 .table-of-contents__link {
   border-left: 2px solid transparent;
-  padding-left: 0.5rem;
+  padding: 0.25rem 1rem;
   transition: border-color 120ms ease, color 120ms ease;
+  color: var(--ifm-color-content-secondary);
+  display: block;
+}
+
+.table-of-contents__link:hover {
+  color: var(--ifm-color-secondary);
 }
 
 .table-of-contents__link--active {
-  border-left-color: var(--ifm-color-primary);
+  font-weight: 600;
+  color: var(--ifm-color-secondary);
+  border-left-color: var(--ifm-color-secondary);
+}
+
+/* "Pro Tip" callout under the TOC — injected via ::after on the
+ * desktop TOC container. Static text per the Stitch design.
+ */
+.theme-doc-toc-desktop::after {
+  content: "PRO TIP\A Combine functions like time_bucket and locf to handle missing intervals in sparse time-series datasets.";
+  white-space: pre-line;
+  display: block;
+  margin-top: 2rem;
+  padding: 1rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ifm-color-content-secondary);
+  background: rgba(255, 92, 77, 0.08);
+  border: 1px solid rgba(255, 92, 77, 0.2);
+  border-radius: 0.5rem;
+}
+
+.theme-doc-toc-desktop::first-line {
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+  letter-spacing: 0.05em;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Breadcrumbs — Stitch chevron separators, secondary color on active
+ * ────────────────────────────────────────────────────────────────────── */
+
+.theme-doc-breadcrumbs {
+  margin-bottom: 1.5rem;
+}
+
+.breadcrumbs {
+  font-size: 0.875rem;
+  align-items: center;
+}
+
+.breadcrumbs__item {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ifm-color-content-secondary);
+}
+
+.breadcrumbs__item:not(:last-child)::after {
+  content: "chevron_right";
+  font-family: "Material Symbols Outlined";
+  font-size: 1rem;
+  margin: 0 0.25rem;
+  color: var(--ifm-color-content-secondary);
+  vertical-align: middle;
+  /* Override Docusaurus's default ">" separator */
+  background-image: none;
+  width: auto;
+  height: auto;
+  opacity: 0.6;
+}
+
+.breadcrumbs__link {
+  color: var(--ifm-color-content-secondary);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.breadcrumbs__link:hover {
+  background: var(--ifm-color-emphasis-200);
+  color: var(--ifm-color-content);
+}
+
+.breadcrumbs__item--active .breadcrumbs__link {
+  background: transparent;
+  color: var(--ifm-color-secondary);
+  font-weight: 600;
+}
+
+/* Hide the home icon — Stitch breadcrumbs don't have one */
+.breadcrumbHomeIcon_YNFT,
+.breadcrumbHomeIcon {
+  display: none;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Code blocks on doc pages — Stitch utility-bar pattern
+ * Language label top-left, copy icon top-right, rounded-xl container
+ * ────────────────────────────────────────────────────────────────────── */
+
+.theme-code-block {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+[class*="codeBlockTitle"] {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--ifm-color-emphasis-100);
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  color: var(--ifm-color-content-secondary);
+}
+
+[class*="buttonGroup"] {
+  background: transparent;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Doc article content polish
+ * ────────────────────────────────────────────────────────────────────── */
+
+.markdown h1:first-child {
+  font-size: 2.5rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 1.5rem;
+}
+
+.markdown h2 {
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.markdown h2:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.markdown h3 {
+  font-size: 1.25rem;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Tables — Stitch uses bordered rounded tables with bg headers */
+.markdown table {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.markdown table thead {
+  background: var(--ifm-color-emphasis-100);
+}
+
+.markdown table th {
+  font-weight: 700;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.markdown table td,
+.markdown table th {
+  padding: 0.75rem 1rem;
 }
 
 /* ──────────────────────────────────────────────────────────────────────

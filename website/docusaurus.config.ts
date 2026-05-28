@@ -149,13 +149,26 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: "LakeTS",
+      title: "lake ts",
+      hideOnScroll: false,
       items: [
         {
-          type: "docSidebar",
-          sidebarId: "docsSidebar",
-          position: "left",
+          to: "/intro",
           label: "Docs",
+          position: "left",
+          className: "navbar-link-docs",
+          activeBaseRegex: "/(intro|guides)",
+        },
+        {
+          to: "/reference/api-reference",
+          label: "API",
+          position: "left",
+          activeBaseRegex: "/reference",
+        },
+        {
+          href: "https://github.com/databricks-solutions/lakets/discussions",
+          label: "Community",
+          position: "left",
         },
         {
           href: "https://github.com/databricks-solutions/lakets/releases",
