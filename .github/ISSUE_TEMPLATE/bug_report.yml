@@ -1,0 +1,77 @@
+name: Bug report
+description: Report a defect in LakeTS
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in the sections below so we can reproduce it.
+  - type: input
+    id: lakets-version
+    attributes:
+      label: LakeTS version
+      description: Run `SELECT version FROM lakets._version ORDER BY installed_at DESC LIMIT 1;`
+      placeholder: "v0.1.2"
+    validations:
+      required: true
+  - type: input
+    id: postgres-version
+    attributes:
+      label: PostgreSQL / Lakebase version
+      description: Run `SELECT version();`
+      placeholder: "PostgreSQL 16.12 on Lakebase"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install method
+      options:
+        - Single-file release (lakets.sql)
+        - From source (sql/99_install.sql)
+        - Via psycopg / Databricks notebook
+        - Other (describe below)
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug. Include the function or module involved.
+      placeholder: |
+        I called `lakets.create_chronotable(...)` and got an unexpected error.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Minimal SQL to reproduce. Include schema, function calls, and observed error.
+      render: sql
+      placeholder: |
+        CREATE TABLE metrics (time TIMESTAMPTZ NOT NULL, value FLOAT8);
+        SELECT lakets.create_chronotable('metrics', 'time', '1 day');
+        -- Error: ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or error output
+      render: shell
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched existing issues and didn't find a duplicate.
+          required: true
+        - label: I'm on a supported LakeTS version (latest minor or one prior).
+          required: true
