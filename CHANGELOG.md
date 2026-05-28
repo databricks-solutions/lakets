@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version
 
 ---
 
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+---
+
 ## [0.1.2] - 2026-04-13
 
 ### Changed
@@ -77,3 +93,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version
 - Build system for single-file distribution (`make build`)
 - GitHub Actions release workflow
 - 118 SQL test cases across 13 suites
+
+---
+
+[Unreleased]: https://github.com/databricks-solutions/lakets/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/databricks-solutions/lakets/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/databricks-solutions/lakets/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/databricks-solutions/lakets/releases/tag/v0.1.0
