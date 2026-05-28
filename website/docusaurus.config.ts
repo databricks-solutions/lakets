@@ -46,14 +46,21 @@ const config: Config = {
         crossorigin: "true",
       },
     },
-    // Tailwind config for the Stitch-styled homepage. Loaded inline so it
-    // exists before the Tailwind CDN <script> initializes.
+    // Tailwind CDN — load FIRST so the `tailwind` global exists before
+    // the config script below can attach our custom design tokens to it.
+    {
+      tagName: "script",
+      attributes: {
+        src: "https://cdn.tailwindcss.com?plugins=forms,container-queries",
+      },
+    },
+    // Tailwind config applied AFTER the CDN initializes. This mirrors
+    // Stitch's own HTML which sets `tailwind.config = {...}` post-CDN.
     {
       tagName: "script",
       attributes: { id: "tailwind-config", type: "text/javascript" },
       innerHTML: `
-        window.tailwind = window.tailwind || {};
-        window.tailwind.config = {
+        tailwind.config = {
           darkMode: 'class',
           theme: {
             extend: {
@@ -112,13 +119,6 @@ const config: Config = {
           },
         };
       `,
-    },
-    // Tailwind CDN — loaded after the config above so it picks it up.
-    {
-      tagName: "script",
-      attributes: {
-        src: "https://cdn.tailwindcss.com?plugins=forms,container-queries",
-      },
     },
   ],
 
