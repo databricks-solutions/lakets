@@ -1,0 +1,71 @@
+# actions/labeler v5 config — auto-applies labels based on changed paths.
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/**
+          - README.md
+          - CONTRIBUTING.md
+          - CHANGELOG.md
+          - website/**
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/workflows/**
+          - .github/dependabot.yml
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - requirements.txt
+          - .github/workflows/**
+
+sql:
+  - changed-files:
+      - any-glob-to-any-file:
+          - sql/**
+
+migrations:
+  - changed-files:
+      - any-glob-to-any-file:
+          - migrations/**
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - tests/**
+
+databricks-workflows:
+  - changed-files:
+      - any-glob-to-any-file:
+          - databricks/**
+
+"area: rollup":
+  - changed-files:
+      - any-glob-to-any-file:
+          - sql/03_rollup.sql
+          - sql/13_rollup_optimization.sql
+          - databricks/workflows/rollup_*.py
+
+"area: chronotable":
+  - changed-files:
+      - any-glob-to-any-file:
+          - sql/01_chronotable.sql
+
+"area: lvc":
+  - changed-files:
+      - any-glob-to-any-file:
+          - sql/09_lvc.sql
+
+"area: compression-tiering":
+  - changed-files:
+      - any-glob-to-any-file:
+          - sql/04_compression.sql
+          - databricks/workflows/compression_*.py
+
+"area: unity-catalog":
+  - changed-files:
+      - any-glob-to-any-file:
+          - sql/14_uc_integration.sql
+          - databricks/workflows/uc_registration.py

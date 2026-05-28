@@ -1,5 +1,11 @@
 # LakeTS - Time Series Toolkit for Databricks Lakebase
 
+[![CI](https://github.com/databricks-solutions/lakets/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/databricks-solutions/lakets/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/databricks-solutions/lakets?sort=semver&label=release)](https://github.com/databricks-solutions/lakets/releases/latest)
+[![License](https://img.shields.io/badge/license-Databricks_DB_License-blue)](./LICENSE.md)
+[![PostgreSQL](https://img.shields.io/badge/postgres-16%2B-336791?logo=postgresql&logoColor=white)](#)
+[![Tests](https://img.shields.io/badge/tests-146%20cases-success)](./tests)
+
 LakeTS is a time series toolkit for Databricks Lakebase — pure SQL (PL/pgSQL) functions with a hot tier (Lakebase) + cold tier (Delta Lake) hybrid architecture. No custom extensions required.
 
 ## Features
