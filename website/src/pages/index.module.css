@@ -1,0 +1,14 @@
+/* Lakehouse-themed token classes for the SQL preview code block on the
+ * homepage. The colors mirror the Stitch design system. */
+
+.root {
+  /* Force the homepage to fill its area regardless of color mode. The
+   * underlying Docusaurus body inherits theme colors; the bg-surface
+   * Tailwind class anchors us to the Stitch dark surface. */
+  min-height: calc(100vh - var(--ifm-navbar-height, 60px));
+}
+
+.tokenKeyword { color: #ffb4aa; font-weight: 600; }
+.tokenString  { color: #ff5c4d; }
+.tokenFunction { color: #79d1ff; }
+.tokenComment { color: #8a8fa3; font-style: italic; }

@@ -22,10 +22,14 @@ const config: Config = {
     locales: ["en"],
   },
 
-  // Stitch "Lakehouse Technical Documentation" theme fonts
+  // Stitch "Lakehouse Technical Documentation" theme fonts + icons
   stylesheets: [
     {
       href: "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap",
+      type: "text/css",
+    },
+    {
+      href: "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block",
       type: "text/css",
     },
   ],
@@ -40,6 +44,80 @@ const config: Config = {
         rel: "preconnect",
         href: "https://fonts.gstatic.com",
         crossorigin: "true",
+      },
+    },
+    // Tailwind config for the Stitch-styled homepage. Loaded inline so it
+    // exists before the Tailwind CDN <script> initializes.
+    {
+      tagName: "script",
+      attributes: { id: "tailwind-config", type: "text/javascript" },
+      innerHTML: `
+        window.tailwind = window.tailwind || {};
+        window.tailwind.config = {
+          darkMode: 'class',
+          theme: {
+            extend: {
+              colors: {
+                primary: '#ffb4aa',
+                'primary-container': '#ff5c4d',
+                'on-primary-container': '#610002',
+                secondary: '#79d1ff',
+                'secondary-container': '#00a7de',
+                'on-secondary-container': '#00374d',
+                tertiary: '#c0c1ff',
+                error: '#ffb4ab',
+                surface: '#0c1322',
+                'surface-bright': '#323949',
+                'surface-variant': '#2e3545',
+                'surface-container': '#191f2f',
+                'surface-container-low': '#141b2b',
+                'surface-container-lowest': '#070e1d',
+                'surface-container-high': '#232a3a',
+                'surface-container-highest': '#2e3545',
+                'on-surface': '#dce2f7',
+                'on-surface-variant': '#aab0c4',
+                outline: '#4a5160',
+                'outline-variant': '#5a403d',
+              },
+              spacing: {
+                unit: '4px',
+                xs: '4px',
+                sm: '8px',
+                md: '16px',
+                lg: '24px',
+                xl: '32px',
+                gutter: '24px',
+                'sidebar-width': '280px',
+                'container-max': '1280px',
+              },
+              fontFamily: {
+                'headline-lg': ['DM Sans'],
+                'headline-md': ['DM Sans'],
+                'body-md': ['DM Sans'],
+                'body-lg': ['DM Sans'],
+                display: ['DM Sans'],
+                'code-block': ['JetBrains Mono'],
+                'label-sm': ['JetBrains Mono'],
+              },
+              fontSize: {
+                display: ['48px', { lineHeight: '56px', letterSpacing: '-0.02em', fontWeight: '700' }],
+                'headline-lg': ['32px', { lineHeight: '40px', letterSpacing: '-0.01em', fontWeight: '700' }],
+                'headline-md': ['24px', { lineHeight: '32px', fontWeight: '600' }],
+                'body-lg': ['18px', { lineHeight: '28px', fontWeight: '400' }],
+                'body-md': ['16px', { lineHeight: '24px', fontWeight: '400' }],
+                'code-block': ['14px', { lineHeight: '20px', fontWeight: '400' }],
+                'label-sm': ['12px', { lineHeight: '16px', letterSpacing: '0.05em', fontWeight: '500' }],
+              },
+            },
+          },
+        };
+      `,
+    },
+    // Tailwind CDN — loaded after the config above so it picks it up.
+    {
+      tagName: "script",
+      attributes: {
+        src: "https://cdn.tailwindcss.com?plugins=forms,container-queries",
       },
     },
   ],
