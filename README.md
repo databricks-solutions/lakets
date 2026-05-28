@@ -154,10 +154,23 @@ requirements.txt   -- Python dependencies for workflows
 
 ## Documentation
 
-- [Getting Started](docs/getting_started.md) - Install, create ChronoTables, query
-- [How It Works](docs/how_it_works.md) - Deep dive into internals with diagrams
-- [API Reference](docs/api_reference.md) - All 70+ functions documented
-- [Lakehouse Sync Setup](docs/lakehouse_sync_setup.md) - Delta Lake integration
+The canonical documentation lives in the [`website/`](./website/) directory and is published as a Docusaurus site at https://databricks-solutions.github.io/lakets/.
+
+Direct links:
+
+- [Getting Started](./website/docs/guides/getting-started.md) — install, create ChronoTables, query.
+- [How It Works](./website/docs/guides/how-it-works.md) — internals, architecture diagrams.
+- [Lakehouse Sync Setup](./website/docs/guides/lakehouse-sync-setup.md) — Delta Lake integration.
+- [API Reference](./website/docs/reference/api-reference.md) — public function signatures.
+- [Function Reference](./website/docs/reference/function-reference.md) — complete catalog (77 functions, 2 aggregates, 6 triggers, 9 metadata tables).
+
+To preview locally:
+
+```bash
+cd website
+npm install
+npm start
+```
 
 ## Observability Dashboards
 

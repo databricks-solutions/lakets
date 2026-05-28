@@ -1,12 +1,16 @@
 ---
 slug: /
-title: LakeTS
-description: Time Series Toolkit for Databricks Lakebase
+title: Introduction
+sidebar_label: Introduction
+sidebar_position: 0
+description: LakeTS is a pure-SQL time series toolkit for Databricks Lakebase, with a hot Lakebase + cold Delta tier hybrid architecture.
 ---
 
 # LakeTS
 
-**Time series toolkit for Databricks Lakebase** — pure SQL (PL/pgSQL) functions with a hot tier (Lakebase) + cold tier (Delta Lake) hybrid architecture. No custom extensions required.
+**Time series toolkit for Databricks Lakebase.** Pure SQL (PL/pgSQL) — no custom PostgreSQL extensions required.
+
+LakeTS turns Lakebase into a full time series database with automatic partitioning, time bucketing, gap-filling, incremental rollups, and tiered storage. The hot tier is Lakebase (sub-10ms queries on the latest data); the cold tier is Delta Lake (cheap retention + Photon analytics). Lakehouse Sync streams between them via CDC.
 
 ## Quick start
 
@@ -19,12 +23,19 @@ sha256sum -c lakets.sql.sha256
 psql -h <host> -U <user> -d <database> -f lakets.sql
 ```
 
-Then create your first ChronoTable:
+Create your first ChronoTable:
 
 ```sql
 CREATE TABLE metrics (time TIMESTAMPTZ NOT NULL, device TEXT, cpu FLOAT8);
 SELECT lakets.create_chronotable('metrics', 'time', '1 day');
+
+-- Query with time series functions
+SELECT lakets.time_bucket('1 hour'::interval, time) AS hour,
+       avg(cpu), lakets.first(cpu, time), lakets.last(cpu, time)
+FROM metrics GROUP BY 1 ORDER BY 1;
 ```
+
+Continue with the [Getting Started guide](./guides/getting-started.md) for the full walk-through, or jump to [How It Works](./guides/how-it-works.md) for the architecture.
 
 ## What's included
 
@@ -33,20 +44,21 @@ SELECT lakets.create_chronotable('metrics', 'time', '1 day');
 - **Time series functions** — `time_bucket`, `first`, `last`, `locf`, `interpolate`, `delta`, `rate`, `histogram`
 - **Gap-filling** — `time_bucket_gapfill` for continuous time series
 - **RollUp engine** — incremental aggregates with DAG orchestration and Delta export
-- **Compression & Tiering** — Lakebase → Delta Lake lifecycle
+- **Compression & Tiering** — Lakebase → Delta Lake lifecycle policies
+- **Retention** — automated lifecycle management across both tiers
+- **Lakehouse Sync** — CDC-based Delta replication via shadow tables
 - **Last Value Cache** — sub-10ms latest-state queries
-- **Lakehouse Sync** — CDC-based Delta replication
-- **Unity Catalog Integration** — register and tag Delta exports
+- **Unity Catalog integration** — register and tag Delta exports
 - **Bulk Ingest** — JSONB batch + Prometheus formats
+- **Alert rules** — SQL-native threshold and deadman alerts
+- **Monitoring** — Prometheus-compatible metrics endpoint
 
-## Docs roadmap
+## Where to next
 
-This site is the skeleton for the LakeTS documentation. Existing Markdown guides in [`docs/`](https://github.com/databricks-solutions/lakets/tree/main/docs) on the main repository will be migrated here over upcoming releases:
-
-- Getting started
-- How it works (architecture)
-- API reference
-- Lakehouse Sync setup
-- Function reference (70+ entries)
-
-Until then, the canonical docs live in the [GitHub repository](https://github.com/databricks-solutions/lakets).
+| If you want to… | Read |
+|---|---|
+| Get hands-on quickly | [Getting Started](./guides/getting-started.md) |
+| Understand the architecture | [How It Works](./guides/how-it-works.md) |
+| Set up Delta replication | [Lakehouse Sync Setup](./guides/lakehouse-sync-setup.md) |
+| Look up a function signature | [API Reference](./reference/api-reference.md) |
+| Browse the full catalog | [Function Reference](./reference/function-reference.md) |
