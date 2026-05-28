@@ -86,15 +86,15 @@ function StitchHeader() {
 function StitchSidebar() {
   const navItems = [
     { icon: "rocket_launch", label: "Getting Started", to: "/guides/getting-started", active: true },
-    { icon: "auto_graph", label: "How It Works", to: "/guides/how-it-works" },
+    { icon: "auto_graph", label: "Core Concepts", to: "/guides/how-it-works" },
     { icon: "api", label: "API Reference", to: "/reference/api-reference" },
-    { icon: "query_stats", label: "Function Reference", to: "/reference/function-reference" },
-    { icon: "verified", label: "Lakehouse Sync", to: "/guides/lakehouse-sync-setup" },
+    { icon: "query_stats", label: "Time Series Functions", to: "/reference/function-reference" },
+    { icon: "verified", label: "Best Practices", to: "/guides/lakehouse-sync-setup" },
   ];
   const advanced = [
-    { label: "ChronoTables", to: "/reference/api-reference#chronotable-management" },
-    { label: "RollUp engine", to: "/guides/how-it-works" },
-    { label: "Unity Catalog", to: "/reference/api-reference" },
+    { label: "Data Compaction", to: "/reference/api-reference" },
+    { label: "Windowing Strategies", to: "/guides/how-it-works" },
+    { label: "Lakehouse Integration", to: "/guides/lakehouse-sync-setup" },
   ];
   return (
     <aside className="hidden md:flex h-full w-sidebar-width fixed left-0 top-0 z-40 bg-surface-container border-r border-outline-variant/30 flex-col pt-16">
@@ -149,17 +149,17 @@ function StitchHero() {
           <div className="inline-flex items-center gap-sm px-md py-xs rounded-full bg-primary/10 border border-primary/20 mb-lg">
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <span className="text-label-sm text-primary uppercase font-bold">
-              New: v0.1.2 Live
+              New: Version 0.1.2 Live
             </span>
           </div>
           <h1 className="font-display text-display text-on-surface leading-tight mb-md">
             Supercharge <span className="text-primary">Time-Series</span> on
-            Databricks Lakebase
+            Databricks
           </h1>
           <p className="font-body-lg text-body-lg text-on-surface-variant mb-xl max-w-xl">
-            A pure-SQL toolkit for Databricks Lakebase designed for massive-scale
-            time-series analysis. Achieve sub-10ms latest-state queries and
-            incremental rollups with zero custom extensions.
+            A high-performance extension for Delta Lake designed specifically
+            for massive-scale time-series analysis. Achieve 10x faster
+            ingestion and real-time windowing with zero management.
           </p>
           <div className="flex flex-wrap gap-md">
             <Link
@@ -179,14 +179,11 @@ function StitchHero() {
         <div className="relative group">
           <div className="absolute -inset-4 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-1000" />
           <div className="relative bg-surface-container-high rounded-xl border border-outline-variant/30 overflow-hidden shadow-2xl aspect-video">
-            <div className="absolute inset-0">
-              <div className={styles.heroGrid} />
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className={styles.heroGlow}>
-                <Icon name="waves" className={styles.heroDelta} />
-              </div>
-            </div>
+            <img
+              src="/lakets/img/stitch/hero.png"
+              alt="Databricks delta logo with glowing data-flow streaks"
+              className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-500"
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-surface-container-high/60 to-transparent" />
           </div>
         </div>
@@ -204,21 +201,21 @@ function FeatureBento() {
           iconColor="text-primary"
           iconHover="group-hover:bg-primary/20"
           title="Sub-Second Queries"
-          body="Last Value Cache + native time-series indexing for blazing-fast lookups on hot data, with cold-tier Delta queries via Photon."
+          body="Optimized data layout using Z-Ordering and native time-series indexing for blazing fast lookups across petabytes of data."
         />
         <FeatureCard
           icon="view_agenda"
           iconColor="text-secondary"
           iconHover="group-hover:bg-secondary/20"
           title="Native Time Bucketing"
-          body="time_bucket, gap-fill, locf, first/last, delta, rate, histogram — purpose-built SQL operators, not bolted-on window functions."
+          body="Simplified syntax for complex temporal aggregations. Move beyond window functions to dedicated time bucketing logic."
         />
         <FeatureCard
           icon="cloud_sync"
           iconColor="text-tertiary"
           iconHover="group-hover:bg-tertiary/20"
           title="Delta Integrated"
-          body="Hot Lakebase + cold Delta Lake hybrid with Lakehouse Sync CDC, automatic tiering, retention, and Unity Catalog registration."
+          body="Built on top of Delta Lake. Fully ACID compliant with versioning, schema enforcement, and zero-copy cloning support."
         />
       </div>
     </section>
@@ -324,10 +321,11 @@ function CodeDemo() {
           </div>
           <div className="lg:col-span-2 flex flex-col gap-md">
             <div className="relative bg-surface-container rounded-xl border border-outline-variant/30 overflow-hidden group aspect-square">
-              <div className="absolute inset-0 bg-gradient-to-br from-surface-container-high to-surface-container-lowest" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Icon name="trending_up" className={styles.demoIcon} />
-              </div>
+              <img
+                src="/lakets/img/stitch/demo.png"
+                alt="Terminal-style code editor with a live re-aggregating line chart"
+                className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+              />
               <div className="absolute bottom-md left-md bg-surface-container-highest/80 backdrop-blur-md px-md py-sm rounded-lg border border-outline-variant/30">
                 <span className="text-label-sm text-primary font-bold">
                   LIVE RESULT VIEW
@@ -342,9 +340,9 @@ function CodeDemo() {
                 />
                 Use{" "}
                 <code className="bg-surface-container px-xs py-0.5 rounded text-primary">
-                  locf()
+                  FILL(PREV)
                 </code>{" "}
-                to fill missing intervals in your data series effortlessly.
+                to handle missing intervals in your data series effortlessly.
               </p>
             </div>
           </div>
