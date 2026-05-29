@@ -25,7 +25,7 @@ LakeTS is a time series toolkit for Databricks Lakebase — pure SQL (PL/pgSQL) 
 | **Alert Rules** | SQL-native `alert_check()` + `alert_deadman()` on hot data |
 | **Bulk Ingest** | `ingest_batch()` for JSONB arrays + `ingest_prometheus()` |
 | **Downsampling Registry** | Multi-resolution pipeline metadata + `query_auto_resolution()` |
-| **Unity Catalog Integration** | Auto-register and tag Delta exports in Unity Catalog via `register_uc_table()` / `tag_uc_table()` |
+| **Unity Catalog Sync** | Mirror ChronoTables and RollUps to Unity Catalog via Lakebase CDF (`enable_sync`) |
 | **Monitoring** | Prometheus-compatible metrics endpoint |
 | **Benchmarks** | TSBS-adapted benchmark suite |
 
@@ -124,13 +124,13 @@ flowchart LR
     LT["LakeTS Toolkit<br/>(PL/pgSQL functions)"]
     HOT["HOT: Lakebase<br/>Partitioned<br/>Sub-10ms reads<br/>Real-time writes"]
     COLD["COLD: Delta Lake<br/>Columnar Parquet<br/>Photon analytics<br/>Unity Catalog"]
-    ROLLUP["RollUp Tables<br/>Incremental aggregates<br/>DAG orchestration<br/>Delta export"]
+    ROLLUP["RollUp Tables<br/>Incremental aggregates<br/>DAG orchestration<br/>CDF sync"]
 
     APP --> LT
     LT --> HOT
     HOT -->|"Lakehouse Sync CDC"| COLD
     HOT --> ROLLUP
-    ROLLUP -->|"rollup_export.py"| COLD
+    ROLLUP -->|"enable_sync (Lakebase CDF)"| COLD
     COLD -.->|"Federation"| LT
 
     style HOT fill:#2ECC71,color:#fff

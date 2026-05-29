@@ -79,7 +79,7 @@ See [How RollUps Work](./guides/how-it-works/rollups.md).
 
 ## Shadow table
 
-An unpartitioned `_shadow_<table>` that mirrors writes from a partitioned ChronoTable. Required because Lakebase CDF can't replicate partitioned tables directly. Created automatically by `lakets.enable_sync()`.
+An unpartitioned `_shadow_<table>` in the `lakets_cdf` schema that mirrors writes from a ChronoTable or RollUp. Required because Lakebase CDF can't replicate partitioned tables directly. Created automatically by `lakets.enable_sync()`.
 
 ## Tag column
 

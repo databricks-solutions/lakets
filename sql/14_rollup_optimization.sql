@@ -1,7 +1,7 @@
 -- =============================================================================
--- LakeTS RollUp Optimization — Modules 23–28
+-- LakeTS RollUp Optimization — Modules 23–27
 -- Smart refresh, batch processing, DAG orchestration, tier routing,
--- bulk import invalidation, and RollUp export.
+-- and bulk import invalidation.
 --
 -- Requires: 00_schema.sql, 03_rollup.sql (applied first via 99_install.sql)
 -- =============================================================================

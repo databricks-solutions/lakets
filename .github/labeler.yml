@@ -67,4 +67,4 @@ databricks-workflows:
 "area: unity-catalog":
   - changed-files:
       - any-glob-to-any-file:
-          - sql/14_uc_integration.sql
+          - sql/13_shadow_sync.sql
