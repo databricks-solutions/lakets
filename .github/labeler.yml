@@ -68,4 +68,3 @@ databricks-workflows:
   - changed-files:
       - any-glob-to-any-file:
           - sql/14_uc_integration.sql
-          - databricks/workflows/uc_registration.py
