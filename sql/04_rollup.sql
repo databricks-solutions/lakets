@@ -14,7 +14,6 @@ CREATE OR REPLACE FUNCTION lakets.create_rollup(
     p_bucket_interval INTERVAL DEFAULT '1 hour',
     p_source_table    TEXT     DEFAULT NULL,
     p_source_schema   TEXT     DEFAULT 'public',
-    p_refresh_mode    TEXT     DEFAULT 'incremental',
     p_depends_on      TEXT[]   DEFAULT '{}'
 )
 RETURNS INT
@@ -94,10 +93,10 @@ BEGIN
     -- Register with new columns
     INSERT INTO lakets._rollup_registry
         (name, source_chronotable_id, rollup_table, realtime_view,
-         bucket_interval, refresh_mode, query_text, watermark, last_refreshed_at,
+         bucket_interval, query_text, watermark, last_refreshed_at,
          bucket_column, source_time_column, depends_on)
     VALUES (p_name, v_chronotable_id, v_rollup_table, v_rt_view,
-            p_bucket_interval, p_refresh_mode, p_query, v_watermark, now(),
+            p_bucket_interval, p_query, v_watermark, now(),
             v_bucket_col, v_time_col, v_dep_ids)
     RETURNING id INTO v_rollup_id;
 

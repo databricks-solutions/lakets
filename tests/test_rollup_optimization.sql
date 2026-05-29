@@ -185,7 +185,6 @@ DO $$ DECLARE v_id INT; v_deps INT[]; BEGIN
         '1 day',
         'opt_test',
         'public',
-        'incremental',
         ARRAY['opt_1min']  -- depends on opt_1min
     ) INTO v_id;
 
@@ -502,7 +501,6 @@ BEGIN
         '7 days',
         'opt_test',
         'public',
-        'incremental',
         ARRAY['opt_1hour']
     ) INTO v_id_day;
 
