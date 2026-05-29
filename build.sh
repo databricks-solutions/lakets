@@ -41,7 +41,6 @@ MODULES=(
     "12_ingest.sql"
     "13_shadow_sync.sql"
     "14_rollup_optimization.sql"
-    "15_uc_integration.sql"
 )
 
 # Validate all modules exist

@@ -12,9 +12,9 @@ BEGIN
     RAISE NOTICE 'TEST 1 PASSED: lakets_cdf schema exists';
 END $$;
 
--- Test 2: _rollup_registry has sync columns
+-- Test 2: _rollup_registry has sync columns and export columns are absent
 DO $$
-DECLARE v_sync INT; v_shadow INT;
+DECLARE v_sync INT; v_shadow INT; v_export INT;
 BEGIN
     SELECT count(*) INTO v_sync FROM information_schema.columns
       WHERE table_schema='lakets' AND table_name='_rollup_registry' AND column_name='sync_enabled';
@@ -22,6 +22,9 @@ BEGIN
       WHERE table_schema='lakets' AND table_name='_rollup_registry' AND column_name='shadow_table_name';
     ASSERT v_sync = 1, 'TEST 2 FAILED: sync_enabled column missing';
     ASSERT v_shadow = 1, 'TEST 2 FAILED: shadow_table_name column missing';
+    SELECT count(*) INTO v_export FROM information_schema.columns
+      WHERE table_schema='lakets' AND table_name='_rollup_registry' AND column_name='export_enabled';
+    ASSERT v_export = 0, 'TEST 2 FAILED: export_enabled column still present';
     RAISE NOTICE 'TEST 2 PASSED: registry sync columns present';
 END $$;
 

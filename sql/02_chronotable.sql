@@ -373,14 +373,6 @@ BEGIN
         FROM lakets._rollup_registry
         WHERE source_chronotable_id = v_ct_id
     LOOP
-        -- Drop export config first (if M28 columns exist)
-        BEGIN
-            UPDATE lakets._rollup_registry
-            SET export_enabled = FALSE
-            WHERE name = v_rollup.name;
-        EXCEPTION WHEN undefined_column THEN NULL;
-        END;
-
         EXECUTE format('DROP VIEW IF EXISTS public.%I', v_rollup.realtime_view);
         EXECUTE format('DROP TABLE IF EXISTS public.%I', v_rollup.rollup_table);
 

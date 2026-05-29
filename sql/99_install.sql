@@ -50,11 +50,8 @@
 -- Step 13: Shadow sync for Lakehouse Sync
 \ir 13_shadow_sync.sql
 
--- Step 14: RollUp Optimization — Modules 23-28
+-- Step 14: RollUp Optimization — Modules 23-27
 \ir 14_rollup_optimization.sql
-
--- Step 15: Unity Catalog Integration
-\ir 15_uc_integration.sql
 
 -- Verify installation
 DO $$

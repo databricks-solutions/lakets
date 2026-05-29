@@ -298,8 +298,7 @@ RETURNS TABLE (
     last_refreshed_at TIMESTAMPTZ,
     source_table      TEXT,
     bucket_column     TEXT,
-    depends_on        INT[],
-    export_enabled    BOOLEAN
+    depends_on        INT[]
 )
 LANGUAGE plpgsql
 AS $$
@@ -316,8 +315,7 @@ BEGIN
         r.last_refreshed_at,
         COALESCE(cr.schema_name || '.' || cr.table_name, 'N/A'),
         COALESCE(r.bucket_column, 'bucket'),
-        r.depends_on,
-        COALESCE(r.export_enabled, FALSE)
+        r.depends_on
     FROM lakets._rollup_registry r
     LEFT JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
     ORDER BY r.name;
