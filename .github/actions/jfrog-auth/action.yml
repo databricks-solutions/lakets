@@ -1,0 +1,76 @@
+name: 'Authenticate for JFrog'
+description: 'Authenticate with the Databricks JFrog instance using GitHub OIDC, and configure pip + npm to install from the org-pinned registries.'
+# This composite mirrors databrickslabs/ucx/.github/actions/jfrog-auth (trimmed
+# to the package managers LakeTS actually uses: pip3 and npm). Run it AFTER
+# any setup step that installs the tools you want to configure; auth is
+# applied to whichever managers it detects on PATH.
+#
+# Requirements:
+#   - The calling job must have `permissions: id-token: write` (for OIDC).
+#   - The repo must be enrolled in JFrog OIDC via the
+#     `github-actions` provider on the Databricks JFrog instance.
+
+outputs:
+  jfrog-access-token:
+    description: "Access token for JFrog"
+    value: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
+
+runs:
+  using: "composite"
+  steps:
+    - id: jfrog-auth
+      name: Authenticate against JFrog
+      shell: bash
+      run: |
+        if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL}" ]] || [[ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" ]]; then
+            printf '::error::%s\n' 'This action uses OIDC: job must have "id-token: write" permission'
+            exit 1
+        fi
+        "${GITHUB_ACTION_PATH}/jfrog-auth" "${ACTIONS_ID_TOKEN_REQUEST_URL}" "${ACTIONS_ID_TOKEN_REQUEST_TOKEN}"
+
+    - id: detect-cmds
+      name: Detecting package managers
+      shell: bash
+      run: |
+        for cmd in pip3 npm uv; do
+            command -v "${cmd}" > /dev/null && found=true || found=false
+            printf '::debug::%s\n' "Found ${cmd}: ${found}"
+            printf '%s=%s\n' "command_${cmd}" "${found}" >> "${GITHUB_OUTPUT}"
+        done
+
+    - name: Configure pip for JFrog
+      if: "${{ steps.detect-cmds.outputs.command_pip3 == 'true' }}"
+      shell: bash
+      run: |
+        cat > "${RUNNER_TEMP}/.pip.conf" << 'EOF'
+        [global]
+        index-url = https://databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple
+        EOF
+        printf '%s=%s\n' 'PIP_CONFIG_FILE' "${RUNNER_TEMP}/.pip.conf" >> "${GITHUB_ENV}"
+        printf '::debug::%s\n' 'Configured JFrog access for pip.'
+
+    - name: Configure uv for JFrog
+      if: "${{ steps.detect-cmds.outputs.command_uv == 'true' }}"
+      shell: bash
+      env:
+        JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
+      run: |
+        printf 'UV_INDEX_URL=%s\n' \
+          "https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" \
+          >> "${GITHUB_ENV}"
+        printf '::debug::%s\n' 'Configured JFrog access for uv.'
+
+    - name: Configure npm for JFrog
+      if: "${{ steps.detect-cmds.outputs.command_npm == 'true' }}"
+      shell: bash
+      env:
+        JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
+      run: |
+        umask 077
+        cat > ~/.npmrc << EOF
+        registry=https://databricks.jfrog.io/artifactory/api/npm/db-npm/
+        always-auth=true
+        ignore-scripts=true
+        //databricks.jfrog.io/artifactory/api/npm/db-npm/:_authToken=${JFROG_ACCESS_TOKEN}
+        EOF
+        printf '::debug::%s\n' 'Configured JFrog access for npm.'

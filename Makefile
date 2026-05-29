@@ -3,7 +3,7 @@
 
 VERSION := $(shell cat VERSION 2>/dev/null || echo "0.0.0-dev")
 
-.PHONY: build clean checksum version release release-dry-run release-minor release-major help
+.PHONY: build clean checksum version release release-dry-run release-minor release-major help lock
 
 build: dist/lakets.sql  ## Build the single-file distribution
 
@@ -19,6 +19,11 @@ clean:  ## Remove build artifacts
 
 version:  ## Show current version
 	@echo $(VERSION)
+
+lock:  ## Regenerate requirements.lock (run after editing requirements*.txt)
+	@command -v uv >/dev/null || { echo "Install uv first: pip install uv" >&2; exit 1; }
+	@uv pip compile requirements.txt requirements-dev.txt --generate-hashes -o requirements.lock
+	@echo "✓ requirements.lock regenerated. Commit it alongside the input files."
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \

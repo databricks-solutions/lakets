@@ -8,10 +8,11 @@ on:
       - .github/workflows/deploy-docs.yml
   workflow_dispatch:
 
+# Default workflow permissions: read-only. The build job exchanges an
+# OIDC token for JFrog; the deploy job needs Pages write — both escalate
+# at the job level per M2 / least-privilege.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: deploy-docs
@@ -20,7 +21,12 @@ concurrency:
 jobs:
   build:
     name: Build Docusaurus site
-    runs-on: linux-ubuntu-latest
+    runs-on:
+      group: databricks-solutions-protected-runner-group
+      labels: linux-ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         working-directory: website
@@ -34,8 +40,13 @@ jobs:
           cache: npm
           cache-dependency-path: website/package-lock.json
 
+      - name: Authenticate with JFrog (configures npm to use db-npm)
+        uses: ./.github/actions/jfrog-auth
+
       - name: Install dependencies
-        run: npm ci
+        # The npm registry is configured by the JFrog auth step above; npm ci
+        # is hash-enforced against package-lock.json.
+        run: npm ci --ignore-scripts
 
       - name: Build site
         run: npm run build
@@ -48,7 +59,12 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
-    runs-on: linux-ubuntu-latest
+    runs-on:
+      group: databricks-solutions-protected-runner-group
+      labels: linux-ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

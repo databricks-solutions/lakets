@@ -1,0 +1,4 @@
+# Test-only dependencies. Kept separate from requirements.txt so
+# production callers (e.g. Databricks workflows) don't pull pytest.
+# Locked into requirements.lock alongside requirements.txt.
+pytest>=8.0,<9.0
