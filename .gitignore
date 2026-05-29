@@ -4,6 +4,12 @@ CLAUDE.md
 # Design docs — PRDs, plans, requirements (internal only)
 docs/design/
 
+# Scratch planning markdowns at repo root (local only, never commit)
+/*_PLAN.md
+
+# Remotion animation source project (tooling; rendered output lives in website/static/video/)
+/animations/
+
 # Diagrams, demo, scripts, and benchmarks (internal only)
 diagrams/
 demo/

@@ -1,32 +1,40 @@
 ---
-title: Lakehouse Sync Setup
-sidebar_label: Lakehouse Sync Setup
+title: Lakebase CDF Setup
+sidebar_label: Lakebase CDF Setup
 sidebar_position: 3
-description: Stream data from Lakebase to Delta Lake via CDC using the wal2delta extension.
+description: Stream data from Lakebase to a Unity Catalog Managed Table via CDC.
 ---
 
-# Lakehouse Sync Setup for LakeTS
+# Lakebase CDF Setup for LakeTS
 
-Lakehouse Sync streams data from Lakebase to Delta Lake via CDC (Change Data Capture) using the `wal2delta` extension. This enables:
-- Cold storage tiering to Delta Lake
+Lakebase CDF streams data from Lakebase to a Unity Catalog Managed Table via CDC (Change Data Capture). It gives you:
+
+- Cold-storage tiering to a Unity Catalog Managed Table
 - Cross-tier queries via Lakehouse Federation
-- Analytics on historical data using Photon/Spark
+- Analytics on historical data using Spark
+
+## Prerequisites
+
+- A Databricks workspace with Lakebase enabled
+- A Lakebase **autoscale** instance running **PostgreSQL 17 or later**
+- LakeTS installed on that instance ([Quickstart](./getting-started.md))
+- At least one ChronoTable to replicate
 
 ## How It Works
 
 ```
 ChronoTable (partitioned) --trigger--> Shadow Table (unpartitioned)
                                            |
-                                      wal2delta CDC
+                                       Lakebase CDF
                                            |
-                                      Delta Table (append log)
+                                  UC Managed Table (append log)
                                            |
-                                      Current-State View (deduplicated)
+                                  Current-State View (deduplicated)
 ```
 
-Lakehouse Sync does not support partitioned tables directly. LakeTS uses a **shadow table pattern**: an unpartitioned table with `REPLICA IDENTITY FULL` receives forwarded writes via a trigger, and wal2delta syncs the shadow table to Delta.
+Lakebase CDF does not support partitioned tables directly. LakeTS uses a **shadow table pattern**: an unpartitioned table with `REPLICA IDENTITY FULL` receives forwarded writes via a trigger, and Lakebase CDF syncs the shadow table to the Unity Catalog Managed Table.
 
-## Step 1: Enable Sync on a ChronoTable
+## Step 1: Enable CDF on a ChronoTable
 
 ```sql
 -- The ChronoTable must already exist
@@ -45,10 +53,10 @@ FROM lakets._chronotable_registry WHERE table_name = 'metrics';
 -- sync_enabled=true, shadow_table_name=_shadow_metrics
 ```
 
-## Step 2: Configure Lakehouse Sync in Databricks
+## Step 2: Configure Lakebase CDF in Databricks
 
 1. Open your Lakebase instance in the Databricks UI
-2. Navigate to **Branch overview** > **Lakehouse sync** tab
+2. Navigate to **Branch overview** > **CDF** tab
 3. Click **Start sync**
 4. Select the schema containing your shadow tables (e.g., `public`)
 5. Configure the destination Unity Catalog catalog and schema
@@ -60,15 +68,15 @@ The shadow table `_shadow_metrics` will appear as `lb__shadow_metrics_history` i
 
 From Lakebase:
 ```sql
-SELECT * FROM wal2delta.tables;
+SELECT * FROM lakebase_cdf.tables;
 -- status: STREAMING or SNAPSHOTTING
 -- committed_lsn: latest synced position
 -- last_write_time: when last write occurred
 ```
 
-## Step 4: Query Data from Delta
+## Step 4: Query Data from the Unity Catalog Managed Table
 
-The Delta table is an append-only CDC log. Each row has:
+The UC Managed Table is an append-only CDC log. Each row has:
 - `_change_type`: insert, delete, update_preimage, update_postimage
 - `_timestamp`: when the change was captured
 - `_lsn`: Log Sequence Number
@@ -86,31 +94,31 @@ SELECT * FROM (
 
 ## Step 5: Cross-Tier Queries (Federation)
 
-Query both hot (Lakebase) and cold (Delta) data in a single query:
+Query both hot (Lakebase) and cold (UC Managed Table) data in a single query:
 ```sql
 -- Hot data from Lakebase
 SELECT time, device, cpu FROM metrics WHERE time > now() - interval '7 days'
 UNION ALL
--- Cold data from Delta (via Lakehouse Federation)
+-- Cold data from the UC Managed Table (via Lakehouse Federation)
 SELECT time, device, cpu FROM catalog.schema.metrics_archive WHERE time <= now() - interval '7 days'
 ORDER BY time DESC;
 ```
 
-## Disabling Sync
+## Disabling CDF
 
 ```sql
 SELECT lakets.disable_sync('metrics');
 ```
 
-This drops the shadow table, removes the trigger, and updates the registry. It does **not** delete data already synced to Delta.
+This drops the shadow table, removes the trigger, and updates the registry. It does **not** delete data already synced to the UC Managed Table.
 
 ## Limitations
 
 | Limitation | Workaround |
 |-----------|------------|
 | Partitioned tables can't be synced | Shadow table pattern (handled by LakeTS) |
-| Schema changes break sync | Create new shadow table, re-enable sync, backfill |
-| Unidirectional (Lakebase -> Delta only) | Re-ingest from Delta via Databricks Job for re-heating |
+| Schema changes break sync | Create new shadow table, re-enable CDF, backfill |
+| Unidirectional (Lakebase → UC only) | Re-ingest from the UC Managed Table via Databricks Job for re-heating |
 | PostGIS, pgvector, composite types not supported | Exclude from shadow table or cast to TEXT |
 | Empty tables not synced | First INSERT triggers sync start |
 

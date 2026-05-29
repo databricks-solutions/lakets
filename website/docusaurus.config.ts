@@ -17,6 +17,12 @@ const config: Config = {
   onBrokenLinks: "warn",
   onBrokenMarkdownLinks: "warn",
 
+  // Enable Mermaid for diagram rendering inside markdown ```mermaid blocks.
+  markdown: {
+    mermaid: true,
+  },
+  themes: ["@docusaurus/theme-mermaid"],
+
   i18n: {
     defaultLocale: "en",
     locales: ["en"],
@@ -122,6 +128,19 @@ const config: Config = {
     },
   ],
 
+  plugins: [
+    [
+      require.resolve("@easyops-cn/docusaurus-search-local"),
+      {
+        hashed: true,
+        indexBlog: false,
+        indexPages: false,
+        docsRouteBasePath: "/",
+        highlightSearchTermsOnTargetPage: true,
+      },
+    ],
+  ],
+
   presets: [
     [
       "classic",
@@ -149,21 +168,27 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: "lake ts",
+      title: "LakeTS",
       hideOnScroll: false,
       items: [
         {
-          to: "/intro",
+          to: "/guides/getting-started",
           label: "Documentation",
           position: "left",
           className: "navbar-link-docs",
-          activeBaseRegex: "/(intro|guides)",
+          activeBaseRegex: "/(guides|how-to|how-it-works)",
         },
         {
-          to: "/reference/api-reference",
-          label: "API Reference",
+          to: "/reference/",
+          label: "Reference",
           position: "left",
           activeBaseRegex: "/reference",
+        },
+        {
+          to: "/architecture-patterns",
+          label: "Architecture Patterns",
+          position: "left",
+          activeBaseRegex: "/architecture-patterns",
         },
         {
           href: "https://github.com/databricks-solutions/lakets/discussions",
@@ -184,10 +209,10 @@ const config: Config = {
         {
           title: "Docs",
           items: [
-            { label: "Introduction", to: "/" },
-            { label: "Getting Started", to: "/guides/getting-started" },
-            { label: "How It Works", to: "/guides/how-it-works" },
-            { label: "API Reference", to: "/reference/api-reference" },
+            { label: "Quickstart", to: "/guides/getting-started" },
+            { label: "How-to guides", to: "/how-to/" },
+            { label: "How It Works", to: "/guides/how-it-works/" },
+            { label: "Reference", to: "/reference/" },
           ],
         },
         {
@@ -227,6 +252,25 @@ const config: Config = {
       theme: prismThemes.oneLight,
       darkTheme: prismThemes.oneDark,
       additionalLanguages: ["sql", "bash", "python"],
+    },
+    mermaid: {
+      theme: { light: "default", dark: "dark" },
+      options: {
+        themeVariables: {
+          primaryColor: "#ff5c4d",
+          primaryTextColor: "#dce2f7",
+          primaryBorderColor: "#ff8a7a",
+          lineColor: "#79d1ff",
+          secondaryColor: "#191f2f",
+          tertiaryColor: "#232a3a",
+          background: "#141b2b",
+          fontFamily: "DM Sans, system-ui, sans-serif",
+          fontSize: "18px",
+        },
+        flowchart: { useMaxWidth: true, htmlLabels: true, padding: 16, nodeSpacing: 50, rankSpacing: 60 },
+        sequence: { useMaxWidth: true, actorFontSize: 18, noteFontSize: 16, messageFontSize: 16 },
+        gantt: { useMaxWidth: true, fontSize: 16, sectionFontSize: 18 },
+      },
     },
   } satisfies Preset.ThemeConfig,
 };

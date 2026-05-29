@@ -64,21 +64,46 @@
   filter: drop-shadow(0 0 24px rgba(121, 209, 255, 0.4));
 }
 
-/* Code scroll bar styling per Stitch design */
-.codeScroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.codeScroll::-webkit-scrollbar-track {
-  background: #191f2f;
-}
-.codeScroll::-webkit-scrollbar-thumb {
-  background: #374151;
-  border-radius: 4px;
+/* Code block — restyled for readability on dark surfaces.
+ * Uses the three Stitch brand colors as distinct token categories so SQL
+ * keywords / functions / strings don't visually blur together. */
+.codeBlock {
+  background: #0a1020;
+  padding: 24px 28px;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-x: auto;
 }
 
-/* Lakehouse syntax highlighting */
-.tokenKeyword  { color: #ffb4aa; font-weight: 600; }
-.tokenString   { color: #ff5c4d; }
-.tokenFunction { color: #79d1ff; }
-.tokenComment  { color: #aa8985; font-style: italic; }
+.codeBlock pre {
+  margin: 0;
+  background: transparent;
+  color: #dce2f7;
+  white-space: pre;
+}
+
+.codeScroll::-webkit-scrollbar,
+.codeBlock::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.codeScroll::-webkit-scrollbar-track,
+.codeBlock::-webkit-scrollbar-track {
+  background: transparent;
+}
+.codeScroll::-webkit-scrollbar-thumb,
+.codeBlock::-webkit-scrollbar-thumb {
+  background: rgba(255, 180, 170, 0.18);
+  border-radius: 5px;
+}
+.codeScroll::-webkit-scrollbar-thumb:hover,
+.codeBlock::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 180, 170, 0.32);
+}
+
+/* Lakehouse syntax highlighting — distinct brand-mapped categories */
+.tokenKeyword  { color: #ff8a7a; font-weight: 600; }    /* primary coral, bolder */
+.tokenString   { color: #79d1ff; }                       /* secondary blue */
+.tokenFunction { color: #c0c1ff; font-weight: 500; }     /* tertiary indigo */
+.tokenComment  { color: #6e7a92; font-style: italic; }  /* muted slate, italic */
