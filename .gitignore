@@ -29,6 +29,10 @@ lakets/
 # Build output
 dist/
 
+# Node modules — match directory AND symlink at any level
+# (website/.gitignore's "node_modules/" trailing slash misses symlinks)
+node_modules
+
 # macOS
 .DS_Store
 
