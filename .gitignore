@@ -1,8 +1,8 @@
 # Claude Code project instructions (local only)
 CLAUDE.md
 
-# Design docs — PRDs, plans, requirements (internal only)
-docs/design/
+# Internal docs (PRDs, design, superpowers specs/plans) — local-only, kept in .local/docs/
+/docs/
 
 # Local-only scratch + internal dirs, consolidated here — never commit.
 # Holds: *_PLAN.md scratch notes, animations/ (Remotion source), benchmarks/,
