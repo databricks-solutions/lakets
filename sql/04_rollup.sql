@@ -272,6 +272,11 @@ BEGIN
         RAISE EXCEPTION 'RollUp % not found', p_name;
     END IF;
 
+    -- Tear down CDF sync (drops shadow + trigger) before the rollup table is dropped
+    IF EXISTS (SELECT 1 FROM lakets._rollup_registry WHERE name = p_name AND sync_enabled = TRUE) THEN
+        PERFORM lakets._disable_rollup_sync(p_name);
+    END IF;
+
     EXECUTE format('DROP VIEW IF EXISTS public.%I', v_rt_view);
     EXECUTE format('DROP TABLE IF EXISTS public.%I', v_rollup_table);
     DELETE FROM lakets._rollup_registry WHERE name = p_name;

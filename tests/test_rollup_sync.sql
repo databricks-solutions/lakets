@@ -173,4 +173,34 @@ SELECT lakets.disable_sync('ct_sync_test');
 DROP TABLE IF EXISTS public.ct_sync_test CASCADE;
 DELETE FROM lakets._chronotable_registry WHERE table_name='ct_sync_test';
 
+-- Test 11: drop_rollup removes the shadow when sync is enabled
+DROP VIEW IF EXISTS public._rollup_rt_rs_hourly2;
+DROP TABLE IF EXISTS public._rollup_rs_hourly2;
+DROP TABLE IF EXISTS lakets_cdf._shadow_rollup_rs_hourly2;
+DELETE FROM lakets._rollup_registry WHERE name='rs_hourly2';
+DROP TABLE IF EXISTS public.rs_metrics2 CASCADE;
+DELETE FROM lakets._chunk_metadata WHERE chronotable_id IN (
+    SELECT id FROM lakets._chronotable_registry WHERE table_name='rs_metrics2');
+DELETE FROM lakets._chronotable_registry WHERE table_name='rs_metrics2';
+CREATE TABLE public.rs_metrics2 (time TIMESTAMPTZ NOT NULL, sensor TEXT NOT NULL, reading DOUBLE PRECISION);
+INSERT INTO rs_metrics2 (time,sensor,reading)
+SELECT ts,'s1',1.0 FROM generate_series(now()-interval '2 days', now()-interval '1 hour','1 hour') ts;
+SELECT lakets.create_chronotable('rs_metrics2','time','1 day');
+SELECT lakets.create_rollup('rs_hourly2',
+    $q$SELECT lakets.time_bucket('1 hour'::interval, time) AS bucket, sensor,
+             round(avg(reading)::numeric,2) AS avg_reading FROM rs_metrics2 GROUP BY 1,2$q$,
+    '1 hour','rs_metrics2');
+DO $$
+DECLARE v_exists BOOLEAN;
+BEGIN
+    PERFORM lakets.enable_sync('rs_hourly2');
+    PERFORM lakets.drop_rollup('rs_hourly2');
+    SELECT EXISTS (SELECT 1 FROM information_schema.tables
+        WHERE table_schema='lakets_cdf' AND table_name='_shadow_rollup_rs_hourly2') INTO v_exists;
+    ASSERT NOT v_exists, 'TEST 11 FAILED: shadow survived drop_rollup';
+    RAISE NOTICE 'TEST 11 PASSED: drop_rollup removed shadow';
+END $$;
+DROP TABLE IF EXISTS public.rs_metrics2 CASCADE;
+DELETE FROM lakets._chronotable_registry WHERE table_name='rs_metrics2';
+
 SELECT 'ALL ROLLUP SYNC TESTS PASSED' as result;
