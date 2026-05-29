@@ -146,53 +146,47 @@ BEGIN
     -- Use detected bucket column or default (M27)
     v_bucket_col := COALESCE(v_rec.bucket_column, 'bucket');
 
-    IF v_rec.refresh_mode = 'full' THEN
-        -- Full mode: TRUNCATE + re-INSERT
-        EXECUTE format('TRUNCATE public.%I', v_rec.rollup_table);
-        EXECUTE format('INSERT INTO public.%I %s', v_rec.rollup_table, v_rec.query_text);
-    ELSE
-        -- Incremental mode: only re-compute dirty window
-        v_dirty_from := COALESCE(v_rec.watermark, '-infinity'::timestamptz)
-                        - v_rec.bucket_interval;
+    -- Always incremental: re-compute only the dirty window
+    v_dirty_from := COALESCE(v_rec.watermark, '-infinity'::timestamptz)
+                    - v_rec.bucket_interval;
 
-        -- Phase 1: Watermark-based refresh (current window)
-        -- Attempt predicate injection for scan-level pruning (M23)
-        IF COALESCE(v_rec.predicate_injection, TRUE) AND v_rec.source_time_column IS NOT NULL THEN
-            v_query := lakets._inject_time_predicate(
-                v_rec.query_text, v_rec.source_time_column, v_dirty_from
-            );
-        ELSE
-            v_query := v_rec.query_text;
-        END IF;
-
-        EXECUTE format('DELETE FROM public.%I WHERE %I >= %L',
-            v_rec.rollup_table, v_bucket_col, v_dirty_from);
-
-        EXECUTE format(
-            'INSERT INTO public.%I SELECT * FROM (%s) _q WHERE _q.%I >= %L',
-            v_rec.rollup_table, v_query, v_bucket_col, v_dirty_from
+    -- Phase 1: Watermark-based refresh (current window)
+    -- Attempt predicate injection for scan-level pruning (M23)
+    IF COALESCE(v_rec.predicate_injection, TRUE) AND v_rec.source_time_column IS NOT NULL THEN
+        v_query := lakets._inject_time_predicate(
+            v_rec.query_text, v_rec.source_time_column, v_dirty_from
         );
-
-        -- Phase 2: Batch refresh of hot-tier invalidation log entries (M24)
-        SELECT array_agg(DISTINCT bucket_start ORDER BY bucket_start)
-        INTO v_dirty_buckets
-        FROM lakets._rollup_invalidation_log
-        WHERE rollup_id = v_rec.id
-          AND tier = 'hot'
-          AND bucket_start < v_dirty_from;
-
-        IF v_dirty_buckets IS NOT NULL AND array_length(v_dirty_buckets, 1) > 0 THEN
-            PERFORM lakets._refresh_buckets_chunked(
-                v_rec.id, v_rec.rollup_table, v_rec.query_text,
-                v_bucket_col, v_dirty_buckets, 100
-            );
-        END IF;
-
-        -- Clear only processed hot-tier entries (scoped to avoid racing with concurrent writes)
-        DELETE FROM lakets._rollup_invalidation_log
-        WHERE rollup_id = v_rec.id AND tier = 'hot'
-          AND bucket_start < v_dirty_from;
+    ELSE
+        v_query := v_rec.query_text;
     END IF;
+
+    EXECUTE format('DELETE FROM public.%I WHERE %I >= %L',
+        v_rec.rollup_table, v_bucket_col, v_dirty_from);
+
+    EXECUTE format(
+        'INSERT INTO public.%I SELECT * FROM (%s) _q WHERE _q.%I >= %L',
+        v_rec.rollup_table, v_query, v_bucket_col, v_dirty_from
+    );
+
+    -- Phase 2: Batch refresh of hot-tier invalidation log entries (M24)
+    SELECT array_agg(DISTINCT bucket_start ORDER BY bucket_start)
+    INTO v_dirty_buckets
+    FROM lakets._rollup_invalidation_log
+    WHERE rollup_id = v_rec.id
+      AND tier = 'hot'
+      AND bucket_start < v_dirty_from;
+
+    IF v_dirty_buckets IS NOT NULL AND array_length(v_dirty_buckets, 1) > 0 THEN
+        PERFORM lakets._refresh_buckets_chunked(
+            v_rec.id, v_rec.rollup_table, v_rec.query_text,
+            v_bucket_col, v_dirty_buckets, 100
+        );
+    END IF;
+
+    -- Clear only processed hot-tier entries (scoped to avoid racing with concurrent writes)
+    DELETE FROM lakets._rollup_invalidation_log
+    WHERE rollup_id = v_rec.id AND tier = 'hot'
+      AND bucket_start < v_dirty_from;
 
     -- Advance watermark using detected bucket column
     EXECUTE format('SELECT max(%I) FROM public.%I', v_bucket_col, v_rec.rollup_table)
