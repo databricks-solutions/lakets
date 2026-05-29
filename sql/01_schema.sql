@@ -12,6 +12,10 @@
 -- Full parameterization is planned for v0.3.0 (see docs/design/multi-tenant-namespacing.md).
 -- =============================================================================
 
+-- Dedicated, partition-free schema for CDF shadow tables.
+-- CDF is enabled only on this schema; partitioned ChronoTable parents stay in public.
+CREATE SCHEMA IF NOT EXISTS lakets_cdf;
+
 -- ---------------------------------------------------------------------------
 -- ChronoTable Registry: tracks all tables converted to time-partitioned tables
 -- ---------------------------------------------------------------------------

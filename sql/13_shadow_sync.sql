@@ -4,6 +4,11 @@
 -- Required because Lakehouse Sync does not support partitioned tables.
 -- =============================================================================
 
+-- Sync bookkeeping columns on the RollUp registry (ChronoTable registry already has them).
+ALTER TABLE lakets._rollup_registry
+    ADD COLUMN IF NOT EXISTS sync_enabled      BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS shadow_table_name TEXT;
+
 -- ---------------------------------------------------------------------------
 -- _sync_trigger_fn: Trigger function that forwards writes to shadow table.
 -- Dynamically routes based on TG_TABLE_SCHEMA and TG_TABLE_NAME.
