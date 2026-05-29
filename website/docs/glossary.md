@@ -91,7 +91,7 @@ Two-phase lifecycle policy: tier to the Unity Catalog Managed Table after age N,
 
 ## Unity Catalog Managed Table
 
-Databricks's governed table format that abstracts the underlying storage (Delta or Iceberg). LakeTS uses it as the cold tier — `lakets.enable_sync()` and `lakets.enable_rollup_export()` both target a Unity Catalog Managed Table.
+Databricks's governed table format that abstracts the underlying storage (Delta or Iceberg). LakeTS uses it as the cold tier — `lakets.enable_sync()` targets a Unity Catalog Managed Table via Lakebase CDF.
 
 ## Watermark
 

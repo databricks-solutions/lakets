@@ -56,10 +56,6 @@ Upgrade guard: prevents downgrade or re-install of the same version.
 | `watermark` | TIMESTAMPTZ | Last refresh boundary |
 | `depends_on` | INT[] | Upstream rollup IDs for cascade refresh |
 | `bucket_column` | TEXT | Auto-detected bucket column |
-| `export_enabled` | BOOLEAN | UC export flag |
-| `export_delta_table` | TEXT | Target UC table path (column kept for backwards compatibility) |
-| `export_mode` | TEXT | `incremental` / `full` |
-| `export_watermark` | TIMESTAMPTZ | Last export boundary |
 
 ## `_rollup_invalidation_log`
 
@@ -95,15 +91,4 @@ Upgrade guard: prevents downgrade or re-install of the same version.
 
 Stores multi-resolution pipeline metadata — intervals, retention, aggregation expressions, UC table targets.
 
-## `_uc_registry`
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `rollup_name` | TEXT | RollUp name |
-| `uc_catalog` | TEXT | Unity Catalog catalog |
-| `uc_schema` | TEXT | Unity Catalog schema |
-| `uc_table` | TEXT | UC table name |
-| `delta_table` | TEXT | Unity Catalog Managed Table path |
-| `registered_at` | TIMESTAMPTZ | Registration time |
-| `last_tagged_at` | TIMESTAMPTZ | Last tag update |
-| `tags` | JSONB | Merged system + user tags |

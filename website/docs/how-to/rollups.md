@@ -87,4 +87,4 @@ SELECT * FROM lakets.refresh_rollup_cascade('metrics_daily');
 SELECT * FROM lakets.show_rollup_dag();
 ```
 
-See [How RollUps Work](../guides/how-it-works/rollups.md) for the internals — watermark refresh, invalidation log, chunk-skip pruning, DAG cascade, and Unity Catalog export.
+See [How RollUps Work](../guides/how-it-works/rollups.md) for the internals — watermark refresh, invalidation log, chunk-skip pruning, DAG cascade, and Lakebase CDF sync.

@@ -142,8 +142,8 @@ flowchart TB
         BII["Statement-level trigger<br/>catches COPY FROM"]
     end
 
-    subgraph EXPORT["Unity Catalog export"]
-        EXP["Periodic export<br/>full or incremental"]
+    subgraph SYNC["Lakebase CDF sync"]
+        SYN["Shadow table + CDF<br/>enable_sync()"]
     end
 
     PRUNE --> BATCH
@@ -262,35 +262,33 @@ Both triggers coexist:
 - The per-row trigger handles `UPDATE` and `DELETE`.
 - The statement-level trigger handles `INSERT` (including `COPY`).
 
-## Unity Catalog export — "RollUp Tables visible to Spark / BI / ML"
+## Lakebase CDF sync — "RollUp Tables visible to Spark / BI / ML"
 
 RollUp Tables live in Lakebase. Downstream consumers (BI dashboards, Spark jobs, ML pipelines) typically read from Unity Catalog instead.
 
-`enable_rollup_export()` marks a RollUp for periodic export. The `rollup_export.py` Databricks job reads export-enabled RollUps and writes to the Unity Catalog Managed Table:
+`enable_sync()` sets up a shadow in `lakets_cdf` and Lakebase CDF replicates it continuously to a Unity Catalog Managed Table:
 
 ```mermaid
 flowchart LR
     subgraph LAKEBASE["Lakebase"]
         RT["RollUp Table<br/>_rollup_metrics_hourly"]
-        REG["_rollup_registry<br/>export_enabled=TRUE"]
+        SH["Shadow table<br/>lakets_cdf._shadow_rollup_metrics_hourly<br/>REPLICA IDENTITY FULL"]
     end
 
-    subgraph JOB["Databricks Job"]
-        EXP["rollup_export.py<br/>reads via psycopg2"]
+    subgraph CDF["Lakebase CDF"]
+        CDC["WAL → Delta (wal2delta)"]
     end
 
     subgraph UC["Unity Catalog Managed Table"]
-        DT["main.lakets_rollups.<br/>metrics_hourly"]
+        DT["lb__shadow_rollup_metrics_hourly_history"]
     end
 
-    RT --> EXP
-    REG --> EXP
-    EXP --> DT
+    RT -- "mirror trigger" --> SH
+    SH --> CDC
+    CDC --> DT
 ```
 
-Two export modes:
-- **full**: `OVERWRITE` the UC Managed Table each run
-- **incremental**: `APPEND` only rows newer than `last_exported_at`
+The UC destination is an append-only change feed. Use `disable_sync()` to stop replication (the UC table is not dropped).
 
 ## What `refresh_rollup()` does end to end
 

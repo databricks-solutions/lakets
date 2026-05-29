@@ -176,7 +176,7 @@ Now you can think about how the application or dashboard reads the data:
 - **Long-window queries** — use the cold tier through Lakehouse Federation
 - **Real-time alerts** — add [threshold and deadman alerts](../how-to/alerts.md)
 - **High-throughput writes** — use [`ingest_batch`](../how-to/bulk-ingest.md) instead of per-row inserts
-- **Cross-team analytics** — [export RollUps to Unity Catalog](../how-to/export-to-uc.md) so Spark, BI, and ML can read them
+- **Cross-team analytics** — [sync RollUps to Unity Catalog](../how-to/export-to-uc.md) via Lakebase CDF so Spark, BI, and ML can read them
 - **Observability of LakeTS itself** — see [Monitoring](../how-to/monitoring.md)
 
 ### Reference + further reading

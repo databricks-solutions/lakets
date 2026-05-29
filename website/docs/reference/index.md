@@ -25,8 +25,7 @@ Every LakeTS function, custom aggregate, trigger, and metadata table — grouped
 
 ### Lifecycle
 - **[Lifecycle policies](./lifecycle.md)** — compression, tiering, retention
-- **[Lakebase CDF](./lakebase-cdf.md)** — shadow-table sync to Unity Catalog
-- **[Unity Catalog integration](./unity-catalog.md)** — register and tag exported tables
+- **[Lakebase CDF](./lakebase-cdf.md)** — shadow-table sync to Unity Catalog (ChronoTables and RollUps)
 
 ### Operations
 - **[Last Value Cache](./last-value-cache.md)** — sub-10 ms current-state reads
@@ -49,8 +48,7 @@ Every LakeTS function, custom aggregate, trigger, and metadata table — grouped
 | Alerts | 2 | — | — |
 | Bulk ingest | 2 | — | — |
 | Monitoring | 3 | — | — |
-| Unity Catalog | 4 | — | — |
 | Schema utilities | 1 | — | — |
-| **Total** | **77** | **2** | **6** |
+| **Total** | **73** | **2** | **6** |
 
 All objects in the `lakets` schema. PostgreSQL 17+ required. No custom extensions.

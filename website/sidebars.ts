@@ -70,7 +70,6 @@ const sidebars: SidebarsConfig = {
         "reference/alerts",
         "reference/bulk-ingest",
         "reference/monitoring",
-        "reference/unity-catalog",
         "reference/metadata-tables",
         "reference/workflow-jobs",
       ],

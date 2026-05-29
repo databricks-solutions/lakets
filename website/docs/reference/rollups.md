@@ -174,7 +174,7 @@ SELECT lakets.invalidate_rollup_range(
 
 Lists all registered RollUps with their configuration and status.
 
-**Returns**: TABLE with `name`, `rollup_table`, `realtime_view`, `bucket_interval`, `refresh_mode`, `refresh_lag`, `watermark`, `last_refreshed_at`, `source_table`, `bucket_column`, `depends_on`, `export_enabled`.
+**Returns**: TABLE with `name`, `rollup_table`, `realtime_view`, `bucket_interval`, `refresh_mode`, `refresh_lag`, `watermark`, `last_refreshed_at`, `source_table`, `bucket_column`, `depends_on`.
 
 ### `show_rollup_dag()`
 
@@ -222,21 +222,9 @@ SELECT * FROM lakets._get_dirty_chunks(1, '2026-04-01 00:00:00+00');
 - **`_bulk_import_invalidation()`** — statement-level `AFTER INSERT` trigger using `REFERENCING NEW TABLE` to capture the time range of all inserted rows (including `COPY FROM`)
 - **`_detect_bucket_column(p_query_text)`** — auto-detects the time-bucket column name. Returns the first TIMESTAMPTZ column or `'bucket'`
 
-### Unity Catalog export
+### Lakebase CDF sync
 
-- **`enable_rollup_export(p_rollup_name, p_delta_table, p_export_mode)`** — enables periodic export to a Unity Catalog Managed Table. Mode is `'incremental'` or `'full'`
-- **`disable_rollup_export(p_rollup_name)`** — disables export
-- **`show_rollup_exports()`** — shows export status, lag, and watermark for all export-enabled RollUps
-
-```sql
-SELECT lakets.enable_rollup_export(
-    'hourly_sensors',
-    'main.lakets_rollups.hourly_sensors',
-    'incremental'
-);
-
-SELECT * FROM lakets.show_rollup_exports();
-```
+To expose a RollUp to Spark, BI, or ML via Unity Catalog, use the Lakebase CDF sync functions — see [Lakebase CDF reference](./lakebase-cdf.md) and the [how-to guide](../how-to/export-to-uc.md).
 
 ### Internal helper
 
