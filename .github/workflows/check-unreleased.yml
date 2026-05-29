@@ -81,7 +81,7 @@ jobs:
 
       - name: Open or update release-ready issue
         if: steps.detect.outputs.unreleased == 'true'
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         # Step inputs are passed via env to avoid interpolating step-output
         # strings directly into the JavaScript template literal — see Isaac
         # v2 finding I1. Even though our `commits` value is author-controlled
