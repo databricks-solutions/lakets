@@ -15,7 +15,9 @@ concurrency:
 jobs:
   label:
     name: Apply path-based labels
-    runs-on: linux-ubuntu-latest
+    runs-on:
+      group: databricks-solutions-protected-runner-group
+      labels: linux-ubuntu-latest
     steps:
       - uses: actions/labeler@8558fd74291d67161a8a78ce36a881fa63b766a9  # v5.0.0
         with:

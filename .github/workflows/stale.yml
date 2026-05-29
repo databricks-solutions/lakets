@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  contents: read
   issues: write
   pull-requests: write
 
@@ -16,7 +17,9 @@ concurrency:
 jobs:
   stale:
     name: Triage stale issues and PRs
-    runs-on: linux-ubuntu-latest
+    runs-on:
+      group: databricks-solutions-protected-runner-group
+      labels: linux-ubuntu-latest
     steps:
       - uses: actions/stale@5bef64f19d7facfb25b37b414482c7164d639639  # v9.1.0
         with:

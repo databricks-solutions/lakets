@@ -4,15 +4,21 @@ on:
   pull_request:
     branches: [main]
 
+# Default workflow permissions: read-only. The automerge job below
+# escalates to write only for its own scope (M2 — least-privilege).
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   automerge:
     name: Auto-merge Dependabot minor/patch
-    runs-on: linux-ubuntu-latest
+    runs-on:
+      group: databricks-solutions-protected-runner-group
+      labels: linux-ubuntu-latest
     if: github.actor == 'dependabot[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Fetch Dependabot metadata
         id: metadata
