@@ -119,4 +119,58 @@ SELECT lakets.drop_rollup('rs_hourly');
 DROP TABLE IF EXISTS public.rs_metrics CASCADE;
 DELETE FROM lakets._chronotable_registry WHERE table_name='rs_metrics';
 
+-- ---- ChronoTable sync path + duplicate-row + UPDATE coverage ----
+DROP TABLE IF EXISTS lakets_cdf._shadow_ct_sync_test;
+DROP TABLE IF EXISTS public.ct_sync_test CASCADE;
+DELETE FROM lakets._chunk_metadata WHERE chronotable_id IN (
+    SELECT id FROM lakets._chronotable_registry WHERE table_name='ct_sync_test');
+DELETE FROM lakets._chronotable_registry WHERE table_name='ct_sync_test';
+CREATE TABLE public.ct_sync_test (time TIMESTAMPTZ NOT NULL, sensor TEXT NOT NULL, reading DOUBLE PRECISION);
+SELECT lakets.create_chronotable('ct_sync_test', 'time', '1 day');
+
+-- Test 8: enable_sync on a ChronoTable creates shadow in lakets_cdf and forwards inserts
+DO $$
+DECLARE v_exists BOOLEAN; v_n BIGINT;
+BEGIN
+    PERFORM lakets.enable_sync('ct_sync_test');
+    SELECT EXISTS(SELECT 1 FROM information_schema.tables
+        WHERE table_schema='lakets_cdf' AND table_name='_shadow_ct_sync_test') INTO v_exists;
+    ASSERT v_exists, 'TEST 8 FAILED: chronotable shadow not in lakets_cdf';
+    INSERT INTO public.ct_sync_test VALUES (now(),'a',1.0),(now(),'b',2.0);
+    SELECT count(*) INTO v_n FROM lakets_cdf._shadow_ct_sync_test;
+    ASSERT v_n = 2, format('TEST 8 FAILED: shadow has %s rows', v_n);
+    RAISE NOTICE 'TEST 8 PASSED: chronotable insert mirrored';
+END $$;
+
+-- Test 9: duplicate rows — deleting ONE source row deletes exactly ONE shadow row
+DO $$
+DECLARE v_ts TIMESTAMPTZ := now(); v_n BIGINT;
+BEGIN
+    INSERT INTO public.ct_sync_test VALUES (v_ts,'dup',5.0),(v_ts,'dup',5.0);
+    SELECT count(*) INTO v_n FROM lakets_cdf._shadow_ct_sync_test WHERE sensor='dup';
+    ASSERT v_n = 2, format('TEST 9 FAILED: setup expected 2 dup shadow rows, got %s', v_n);
+    DELETE FROM public.ct_sync_test t
+        WHERE t.ctid = (SELECT ctid FROM public.ct_sync_test WHERE sensor='dup' LIMIT 1);
+    SELECT count(*) INTO v_n FROM lakets_cdf._shadow_ct_sync_test WHERE sensor='dup';
+    ASSERT v_n = 1, format('TEST 9 FAILED: expected 1 dup shadow row after single delete, got %s', v_n);
+    RAISE NOTICE 'TEST 9 PASSED: single-row delete mirrored (no over-delete)';
+END $$;
+
+-- Test 10: UPDATE mirrors (old value gone, new value present)
+DO $$
+DECLARE v_old BIGINT; v_new BIGINT;
+BEGIN
+    UPDATE public.ct_sync_test SET reading = 99.0 WHERE sensor='a';
+    SELECT count(*) INTO v_old FROM lakets_cdf._shadow_ct_sync_test WHERE sensor='a' AND reading=1.0;
+    SELECT count(*) INTO v_new FROM lakets_cdf._shadow_ct_sync_test WHERE sensor='a' AND reading=99.0;
+    ASSERT v_old = 0, format('TEST 10 FAILED: old value still in shadow (%s)', v_old);
+    ASSERT v_new = 1, format('TEST 10 FAILED: new value not in shadow (%s)', v_new);
+    RAISE NOTICE 'TEST 10 PASSED: update mirrored';
+END $$;
+
+-- ChronoTable cleanup
+SELECT lakets.disable_sync('ct_sync_test');
+DROP TABLE IF EXISTS public.ct_sync_test CASCADE;
+DELETE FROM lakets._chronotable_registry WHERE table_name='ct_sync_test';
+
 SELECT 'ALL ROLLUP SYNC TESTS PASSED' as result;

@@ -49,12 +49,16 @@ BEGIN
 
     IF TG_OP = 'DELETE' THEN
         EXECUTE format(
-            'DELETE FROM lakets_cdf.%I t WHERE ROW(t.*) IS NOT DISTINCT FROM ROW(($1).*)',
+            'DELETE FROM lakets_cdf.%1$I WHERE ctid = '
+            '(SELECT ct.ctid FROM lakets_cdf.%1$I ct '
+            ' WHERE ROW(ct.*) IS NOT DISTINCT FROM ROW(($1).*) LIMIT 1)',
             v_shadow) USING OLD;
         RETURN OLD;
     ELSIF TG_OP = 'UPDATE' THEN
         EXECUTE format(
-            'DELETE FROM lakets_cdf.%I t WHERE ROW(t.*) IS NOT DISTINCT FROM ROW(($1).*)',
+            'DELETE FROM lakets_cdf.%1$I WHERE ctid = '
+            '(SELECT ct.ctid FROM lakets_cdf.%1$I ct '
+            ' WHERE ROW(ct.*) IS NOT DISTINCT FROM ROW(($1).*) LIMIT 1)',
             v_shadow) USING OLD;
         EXECUTE format('INSERT INTO lakets_cdf.%I SELECT ($1).*', v_shadow) USING NEW;
         RETURN NEW;
