@@ -10,8 +10,9 @@ on:
         description: 'Tag to release (e.g. v0.1.0)'
         required: true
 
+# Default to read-only. The single job below escalates the writes it needs.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -22,6 +23,15 @@ jobs:
     runs-on:
       group: databricks-solutions-protected-runner-group
       labels: linux-ubuntu-latest
+    permissions:
+      # `contents: write` for `gh release create`.
+      # `id-token: write` + `attestations: write` for SLSA build provenance
+      # (Isaac v2 Recommendation Med #5) — the attestation is published as
+      # an OCI artifact in the org's trust store and can be verified by
+      # downstream consumers with `gh attestation verify`.
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
@@ -53,6 +63,14 @@ jobs:
           cd dist
           sha256sum lakets.sql > lakets.sql.sha256
           cat lakets.sql.sha256
+
+      - name: Generate SLSA build provenance attestation
+        # Publishes a signed attestation binding `dist/lakets.sql` to this
+        # workflow run + commit. Verifiable downstream with
+        #   gh attestation verify lakets.sql --repo databricks-solutions/lakets
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
+        with:
+          subject-path: 'dist/lakets.sql'
 
       - name: Write release notes
         run: |

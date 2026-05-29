@@ -107,6 +107,44 @@ jobs:
           fi
           echo "Secret scan passed"
 
+  actions-pin-lint:
+    name: GitHub Actions SHA-pin Lint
+    runs-on:
+      group: databricks-solutions-protected-runner-group
+      labels: linux-ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Verify every external action is pinned to a 40-char SHA
+        # Per the Isaac v2 supply-chain analysis (Recommendation High #2):
+        # tag-only references (@v4, @main, @latest) are mutable and can be
+        # silently retagged upstream. Local composite actions (./.github/...)
+        # are exempt.
+        run: |
+          set -u
+          ERRORS=0
+          # Scan every `uses:` line that targets a remote action and verify
+          # the ref is a 40-character hex SHA.
+          while IFS= read -r line; do
+            ref="$(echo "$line" | sed -E 's|.*uses:[[:space:]]+([^[:space:]#]+).*|\1|')"
+            # Skip local composite refs (start with ./)
+            case "$ref" in
+              ./*) continue ;;
+            esac
+            sha="${ref##*@}"
+            if ! echo "$sha" | grep -qE '^[0-9a-f]{40}$'; then
+              echo "::error::Unpinned action reference: ${ref} (use a 40-char commit SHA, not a tag)"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done < <(grep -rEn '^\s*-?\s*uses:[[:space:]]+[^[:space:]#]+' .github/workflows/ .github/actions/ 2>/dev/null | grep -v '^[^:]*:[0-9]*:\s*#')
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::Actions pin lint found $ERRORS unpinned reference(s)"
+            exit 1
+          fi
+          echo "All external action references are SHA-pinned."
+
   migration-lint:
     name: Migration Lint
     runs-on:
