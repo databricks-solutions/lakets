@@ -4,21 +4,20 @@ CLAUDE.md
 # Design docs — PRDs, plans, requirements (internal only)
 docs/design/
 
-# Scratch planning markdowns at repo root (local only, never commit)
+# Local-only scratch + internal dirs, consolidated here — never commit.
+# Holds: *_PLAN.md scratch notes, animations/ (Remotion source), benchmarks/,
+# diagrams/, presentations/, scripts/.
+/.local/
+
+# Backstop: any stray scratch planning markdown left at repo root (move it to .local/)
 /*_PLAN.md
 
-# Remotion animation source project (tooling; rendered output lives in website/static/video/)
-/animations/
-
-# Diagrams, demo, scripts, and benchmarks (internal only)
-diagrams/
+# Internal-only dirs kept at repo root (referenced by tracked config/docs/README)
 demo/
-scripts/
-benchmarks/
 grafana/
 
-# Presentations — large binaries, store locally only
-presentations/
+# Local website dev/debug helper scripts (not part of the site build)
+website/scripts/
 
 # Generated test reports
 tests/TEST_REPORT.md
