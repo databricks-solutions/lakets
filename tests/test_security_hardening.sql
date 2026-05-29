@@ -103,19 +103,7 @@ DO $$ BEGIN
     RAISE NOTICE 'T6 PASSED: idx_chunk_metadata_chunk_name index exists';
 END $$;
 
--- T7: valid_export_mode CHECK constraint rejects invalid values
-DO $$ BEGIN
-    -- Attempt to insert an invalid export_mode (should fail)
-    BEGIN
-        INSERT INTO lakets._rollup_registry (
-            name, source_chronotable_id, rollup_table, bucket_interval,
-            query_text, refresh_mode, export_mode
-        ) VALUES ('_test_bad_mode', 1, '_test_bad', '1 hour', 'SELECT 1', 'full', 'invalid_mode');
-        ASSERT FALSE, 'T7 FAILED: invalid export_mode was accepted';
-    EXCEPTION WHEN check_violation THEN
-        RAISE NOTICE 'T7 PASSED: invalid export_mode correctly rejected';
-    END;
-END $$;
+-- T7: (removed — export_mode column dropped in Path B SQL cleanup)
 
 -- T8: ON CONFLICT (chronotable_id, range_start) DO NOTHING in _ensure_partitions
 -- Verified by T5 — the unique constraint enables the ON CONFLICT clause.

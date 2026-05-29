@@ -4,6 +4,7 @@
 
 -- Setup: create hypertable
 DROP TABLE IF EXISTS public.sync_test CASCADE;
+DROP TABLE IF EXISTS lakets_cdf._shadow_sync_test;
 DELETE FROM lakets._chunk_metadata WHERE chronotable_id IN (
     SELECT id FROM lakets._chronotable_registry WHERE table_name = 'sync_test'
 );
@@ -24,7 +25,7 @@ BEGIN
     PERFORM lakets.enable_sync('sync_test');
     SELECT EXISTS (
         SELECT 1 FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_name = '_shadow_sync_test'
+        WHERE table_schema = 'lakets_cdf' AND table_name = '_shadow_sync_test'
     ) INTO v_exists;
     ASSERT v_exists, 'TEST 1 FAILED: shadow table not created';
     RAISE NOTICE 'TEST 1 PASSED: shadow table created';
@@ -36,7 +37,7 @@ DECLARE v_ri CHAR;
 BEGIN
     SELECT relreplident INTO v_ri
     FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid
-    WHERE n.nspname = 'public' AND c.relname = '_shadow_sync_test';
+    WHERE n.nspname = 'lakets_cdf' AND c.relname = '_shadow_sync_test';
     ASSERT v_ri = 'f', format('TEST 2 FAILED: replica identity=%s', v_ri);
     RAISE NOTICE 'TEST 2 PASSED: REPLICA IDENTITY FULL';
 END $$;
@@ -46,9 +47,19 @@ DO $$
 DECLARE v_count BIGINT;
 BEGIN
     INSERT INTO sync_test VALUES (now(), 'test_3a', 42.0), (now(), 'test_3b', 84.0);
-    SELECT count(*) INTO v_count FROM _shadow_sync_test;
+    SELECT count(*) INTO v_count FROM lakets_cdf._shadow_sync_test;
     ASSERT v_count >= 2, format('TEST 3 FAILED: shadow has %s rows', v_count);
     RAISE NOTICE 'TEST 3 PASSED: % rows forwarded to shadow', v_count;
+END $$;
+
+-- Test 3b: source DELETE removes the matching row from the shadow (true mirror)
+DO $$
+DECLARE v_n BIGINT;
+BEGIN
+    DELETE FROM sync_test WHERE sensor = 'test_3a';
+    SELECT count(*) INTO v_n FROM lakets_cdf._shadow_sync_test WHERE sensor = 'test_3a';
+    ASSERT v_n = 0, format('TEST 3b FAILED: delete not mirrored (%s)', v_n);
+    RAISE NOTICE 'TEST 3b PASSED: delete mirrored to shadow';
 END $$;
 
 -- Test 4: registry updated
@@ -80,6 +91,7 @@ END $$;
 
 -- Cleanup
 DROP TABLE IF EXISTS public.sync_test CASCADE;
+DROP TABLE IF EXISTS lakets_cdf._shadow_sync_test;
 DELETE FROM lakets._chunk_metadata WHERE chronotable_id IN (
     SELECT id FROM lakets._chronotable_registry WHERE table_name = 'sync_test'
 );

@@ -343,26 +343,6 @@ DO $$ DECLARE v_count INT; BEGIN
 END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- T26: enable_rollup_export + show_rollup_exports
--- ═══════════════════════════════════════════════════════════════════════════
-DO $$ DECLARE v_count INT; BEGIN
-    PERFORM lakets.enable_rollup_export('opt_1min', 'main.lakets_sync.opt_1min_export', 'incremental');
-
-    SELECT count(*) INTO v_count FROM lakets.show_rollup_exports() WHERE rollup_name = 'opt_1min';
-    ASSERT v_count = 1, 'expected 1 export-enabled RollUp';
-
-    -- Verify columns
-    PERFORM 1 FROM lakets.show_rollup_exports()
-    WHERE rollup_name = 'opt_1min' AND delta_table = 'main.lakets_sync.opt_1min_export';
-
-    PERFORM lakets.disable_rollup_export('opt_1min');
-    SELECT count(*) INTO v_count FROM lakets.show_rollup_exports() WHERE rollup_name = 'opt_1min';
-    ASSERT v_count = 0, 'expected 0 after disable';
-
-    RAISE NOTICE 'T26 PASSED: enable/disable/show_rollup_exports work correctly';
-END $$;
-
--- ═══════════════════════════════════════════════════════════════════════════
 -- T27: Updated refresh_rollup uses batch refresh for Phase 2
 -- ═══════════════════════════════════════════════════════════════════════════
 DO $$ DECLARE v_result BOOLEAN; v_remaining INT; BEGIN
@@ -457,19 +437,6 @@ DO $$ DECLARE v_id INT; BEGIN
         ASSERT SQLERRM ~* 'does not exist', format('expected "does not exist" error, got: %s', SQLERRM);
     END;
     RAISE NOTICE 'T32 PASSED: nonexistent dependency rejected';
-END $$;
-
--- ═══════════════════════════════════════════════════════════════════════════
--- T33: enable_rollup_export rejects invalid export_mode
--- ═══════════════════════════════════════════════════════════════════════════
-DO $$ BEGIN
-    BEGIN
-        PERFORM lakets.enable_rollup_export('opt_1min', 'some.table', 'invalid_mode');
-        ASSERT FALSE, 'expected exception for invalid export_mode';
-    EXCEPTION WHEN OTHERS THEN
-        ASSERT SQLERRM ~* 'export_mode', format('expected export_mode error, got: %s', SQLERRM);
-    END;
-    RAISE NOTICE 'T33 PASSED: invalid export_mode rejected';
 END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
