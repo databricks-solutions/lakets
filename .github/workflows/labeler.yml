@@ -1,5 +1,18 @@
 name: PR Labeler
 
+# Trigger choice: pull_request_target (privileged context) is required because
+# applying labels needs `pull-requests: write`, which the unprivileged
+# `pull_request` trigger cannot grant for PRs opened from forks.
+#
+# Why this is safe — see Isaac v2 finding I2:
+#   - This workflow NEVER checks out PR head contents. `actions/labeler@v5`
+#     reads `.github/labeler.yml` from the base ref (the trusted main branch),
+#     never from the PR.
+#   - There is no `run:` step that interpolates PR-author-controlled context
+#     (title, body, branch name, etc.) into shell commands.
+#   - Permissions are minimal: `contents: read` + `pull-requests: write`.
+# If a future PR ever adds a checkout step here, the trigger MUST be revisited.
+
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]

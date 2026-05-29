@@ -82,14 +82,26 @@ jobs:
       - name: Open or update release-ready issue
         if: steps.detect.outputs.unreleased == 'true'
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        # Step inputs are passed via env to avoid interpolating step-output
+        # strings directly into the JavaScript template literal — see Isaac
+        # v2 finding I1. Even though our `commits` value is author-controlled
+        # (git log output), inline interpolation of `outputs.*` in a script
+        # block is a known injection footgun. env vars sidestep the parser.
+        env:
+          CURRENT_VERSION: ${{ steps.detect.outputs.current_version }}
+          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+          BUMP_TYPE: ${{ steps.version.outputs.bump_type }}
+          COMMIT_COUNT: ${{ steps.detect.outputs.commit_count }}
+          LAST_TAG: ${{ steps.detect.outputs.last_tag }}
+          COMMITS: ${{ steps.detect.outputs.commits }}
         with:
           script: |
-            const currentVersion = '${{ steps.detect.outputs.current_version }}';
-            const nextVersion    = '${{ steps.version.outputs.next_version }}';
-            const bumpType       = '${{ steps.version.outputs.bump_type }}';
-            const commitCount    = '${{ steps.detect.outputs.commit_count }}';
-            const lastTag        = '${{ steps.detect.outputs.last_tag }}';
-            const commits        = `${{ steps.detect.outputs.commits }}`;
+            const currentVersion = process.env.CURRENT_VERSION;
+            const nextVersion    = process.env.NEXT_VERSION;
+            const bumpType       = process.env.BUMP_TYPE;
+            const commitCount    = process.env.COMMIT_COUNT;
+            const lastTag        = process.env.LAST_TAG;
+            const commits        = process.env.COMMITS;
 
             const title = `chore: release v${nextVersion} (${commitCount} unreleased commit(s))`;
             const body = [
