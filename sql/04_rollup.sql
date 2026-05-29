@@ -285,7 +285,6 @@ RETURNS TABLE (
     rollup_table      TEXT,
     realtime_view     TEXT,
     bucket_interval   INTERVAL,
-    refresh_mode      TEXT,
     refresh_lag       INTERVAL,
     watermark         TIMESTAMPTZ,
     last_refreshed_at TIMESTAMPTZ,
@@ -302,7 +301,6 @@ BEGIN
         r.rollup_table,
         r.realtime_view,
         r.bucket_interval,
-        r.refresh_mode,
         r.refresh_lag,
         r.watermark,
         r.last_refreshed_at,
@@ -343,14 +341,13 @@ BEGIN
         IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
     END IF;
 
-    -- Find all incremental RollUps registered against this ChronoTable
+    -- Find all RollUps registered against this ChronoTable
     FOR v_rec IN
         SELECT r.id, r.bucket_interval
         FROM lakets._rollup_registry r
         JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
         WHERE cr.schema_name = TG_TABLE_SCHEMA
           AND cr.table_name = COALESCE(v_parent_table, TG_TABLE_NAME)
-          AND r.refresh_mode = 'incremental'
     LOOP
         IF TG_OP = 'DELETE' THEN
             EXECUTE format('SELECT date_bin(%L, ($1).%I, %L::timestamptz)',
@@ -384,20 +381,15 @@ AS $$
 DECLARE
     v_schema TEXT;
     v_table TEXT;
-    v_mode TEXT;
 BEGIN
-    SELECT cr.schema_name, cr.table_name, r.refresh_mode
-    INTO v_schema, v_table, v_mode
+    SELECT cr.schema_name, cr.table_name
+    INTO v_schema, v_table
     FROM lakets._rollup_registry r
     JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
     WHERE r.name = p_rollup_name;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'RollUp % not found', p_rollup_name;
-    END IF;
-
-    IF v_mode != 'incremental' THEN
-        RAISE EXCEPTION 'Invalidation requires refresh_mode = incremental (current: %)', v_mode;
     END IF;
 
     -- Per-row trigger for UPDATE/DELETE (existing behavior)
@@ -472,13 +464,12 @@ BEGIN
     -- Clear invalidation log entries for this RollUp
     DELETE FROM lakets._rollup_invalidation_log WHERE rollup_id = v_rollup_id;
 
-    -- Check if other incremental RollUps on the same source table still need the trigger
+    -- Check if other RollUps on the same source table still need the trigger
     SELECT count(*) INTO v_other_count
     FROM lakets._rollup_registry r
     JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
     WHERE cr.schema_name = v_schema AND cr.table_name = v_table
-      AND r.name != p_rollup_name
-      AND r.refresh_mode = 'incremental';
+      AND r.name != p_rollup_name;
 
     IF v_other_count = 0 THEN
         EXECUTE format(

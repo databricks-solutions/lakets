@@ -568,7 +568,6 @@ BEGIN
         SELECT r.id, r.name, r.bucket_interval, r.watermark
         FROM lakets._rollup_registry r
         WHERE r.source_chronotable_id = v_ct_id
-          AND r.refresh_mode = 'incremental'
     LOOP
         -- Only invalidate buckets below the watermark (above is handled by Phase 1)
         IF v_min_time < COALESCE(v_rollup.watermark, 'infinity'::timestamptz) THEN
