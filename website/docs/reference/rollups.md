@@ -11,7 +11,7 @@ RollUps are pre-computed aggregation tables with **incremental refresh** — onl
 
 **Key design choice**: separate RollUp tables (not materialized views) enable surgical per-bucket refresh, DAG-based cascade refresh, and hot/cold tier routing.
 
-## `create_rollup(p_name, p_query, p_bucket_interval, p_source_table, p_source_schema, p_refresh_mode, p_depends_on)`
+## `create_rollup(p_name, p_query, p_bucket_interval, p_source_table, p_source_schema, p_depends_on)`
 
 Creates a RollUp — a pre-computed aggregation table populated by running the provided query.
 
@@ -22,7 +22,6 @@ Creates a RollUp — a pre-computed aggregation table populated by running the p
 | `p_bucket_interval` | INTERVAL | `'1 hour'` | Time bucket width |
 | `p_source_table` | TEXT | `NULL` | Source ChronoTable (for invalidation tracking) |
 | `p_source_schema` | TEXT | `'public'` | Source table schema |
-| `p_refresh_mode` | TEXT | `'incremental'` | `'incremental'` or `'full'` |
 | `p_depends_on` | TEXT[] | `'{}'` | Names of prerequisite RollUps for cascade refresh |
 
 **Returns**: `INT` — rollup_id
@@ -61,7 +60,7 @@ SELECT lakets.create_rollup(
        FROM lakets._rollup_hourly_sensors
        GROUP BY 1, 2$$,
     '1 day',
-    NULL, 'public', 'incremental',
+    NULL, 'public',
     ARRAY['hourly_sensors']
 );
 ```
@@ -174,7 +173,7 @@ SELECT lakets.invalidate_rollup_range(
 
 Lists all registered RollUps with their configuration and status.
 
-**Returns**: TABLE with `name`, `rollup_table`, `realtime_view`, `bucket_interval`, `refresh_mode`, `refresh_lag`, `watermark`, `last_refreshed_at`, `source_table`, `bucket_column`, `depends_on`.
+**Returns**: TABLE with `name`, `rollup_table`, `realtime_view`, `bucket_interval`, `refresh_lag`, `watermark`, `last_refreshed_at`, `source_table`, `bucket_column`, `depends_on`.
 
 ### `show_rollup_dag()`
 

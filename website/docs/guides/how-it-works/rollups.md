@@ -51,7 +51,7 @@ flowchart TB
 
 1. **RollUp Table** (`_rollup_<name>`): A regular table storing pre-computed aggregations. Supports per-bucket updates via unique index on all columns.
 2. **Real-Time View** (`_rollup_rt_<name>`): A `UNION ALL` of the RollUp Table + a query for data newer than the watermark.
-3. **Registry entry** in `_rollup_registry`: Tracks the RollUp name, bucket interval, watermark, refresh mode, and last refresh time.
+3. **Registry entry** in `_rollup_registry`: Tracks the RollUp name, bucket interval, watermark, and last refresh time.
 
 ## How incremental refresh works
 
@@ -297,9 +297,6 @@ flowchart TB
     START["refresh_rollup('metrics_hourly')"]
     LAG{"Refresh lag<br/>elapsed?"}
     SKIP["Return FALSE<br/>(skipped)"]
-    MODE{"refresh_mode?"}
-
-    FULL["TRUNCATE + INSERT<br/>(full rebuild)"]
 
     P1["Phase 1: Watermark Refresh"]
     PRED{"predicate_injection<br/>enabled?"}
@@ -318,9 +315,7 @@ flowchart TB
 
     START --> LAG
     LAG -- No --> SKIP
-    LAG -- Yes --> MODE
-    MODE -- full --> FULL --> WM
-    MODE -- incremental --> P1
+    LAG -- Yes --> P1
     P1 --> PRED
     PRED -- Yes --> INJ --> DEL1
     PRED -- No --> NOINJ --> DEL1

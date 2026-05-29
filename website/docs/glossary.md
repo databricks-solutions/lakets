@@ -45,7 +45,7 @@ Synonym for ChronoTable. The `create_hypertable()` alias exists for compatibilit
 
 ## Incremental refresh
 
-The default RollUp refresh mode. Only buckets that received new data (the **dirty window**) are recomputed, instead of rebuilding the whole RollUp table. Driven by a **watermark** and an **invalidation log**.
+How RollUps refresh: only buckets that received new data (the **dirty window**) are recomputed, instead of rebuilding the whole table. Driven by a **watermark** and an **invalidation log**.
 
 ## Invalidation log
 

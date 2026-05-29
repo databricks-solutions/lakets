@@ -12,6 +12,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version
 
 ### Changed
 
+- RollUps are now always incremental. Removed the `refresh_mode` toggle and the `'full'`
+  (`TRUNCATE`) refresh strategy; `create_rollup` no longer accepts a `p_refresh_mode` argument
+  and `show_rollups()` no longer returns a `refresh_mode` column.
 - RollUps now sync to Unity Catalog via Lakebase CDF (`enable_sync`), replacing the custom export pipeline. Synced tables are mirrored by unpartitioned shadow tables in the new `lakets_cdf` schema.
 
 ### Deprecated

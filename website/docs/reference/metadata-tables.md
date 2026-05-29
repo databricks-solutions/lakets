@@ -52,7 +52,6 @@ Upgrade guard: prevents downgrade or re-install of the same version.
 | `query` | TEXT | Aggregation SQL |
 | `bucket_interval` | INTERVAL | Bucket size |
 | `source_table` | TEXT | Source ChronoTable |
-| `refresh_mode` | TEXT | `incremental` / `full` |
 | `watermark` | TIMESTAMPTZ | Last refresh boundary |
 | `depends_on` | INT[] | Upstream rollup IDs for cascade refresh |
 | `bucket_column` | TEXT | Auto-detected bucket column |
