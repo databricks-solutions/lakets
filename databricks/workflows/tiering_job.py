@@ -11,7 +11,7 @@ Lakebase SQL — no Spark.
 Schedule: Daily or per tiering policy interval.
 
 Usage as Databricks Job:
-    Pass instance_name as a parameter.
+    Pass project_name as a parameter.
 """
 import logging
 import os
@@ -34,14 +34,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("lakets.tiering_job")
 
 
-def run(instance_name: str) -> int:
+def run(project_name: str) -> int:
     """Evict eligible, CDF-durable chunks for all tables with a tiering policy.
 
     Returns the number of partitions actually dropped this run.
     """
     total_tiered = 0
     deferred = 0
-    with lakebase_cursor(instance_name) as cur:
+    with lakebase_cursor(project_name) as cur:
         tables = fetch_all(cur, """
             SELECT hr.id, hr.schema_name, hr.table_name
             FROM lakets._chronotable_registry hr
@@ -87,5 +87,5 @@ def run(instance_name: str) -> int:
 
 
 if __name__ == "__main__":
-    instance = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_INSTANCE"]
-    run(instance)
+    project = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_PROJECT"]
+    run(project)

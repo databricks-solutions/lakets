@@ -37,16 +37,20 @@ databricks bundle run lakets_cold_rollup_refresh -t prod
 
 ## Authentication & permissions
 
-The jobs connect to Lakebase with **machine-to-machine (M2M) OAuth** — there are no static passwords. Each job runs as a Databricks **service principal**, and the shared helper [`lakebase_utils.py`](https://github.com/databricks-solutions/lakets/blob/main/databricks/workflows/lakebase_utils.py) mints a short-lived Postgres credential for that identity on every connection, following the [psycopg3 connection pattern](https://docs.databricks.com/aws/en/oltp/instances/query/notebook#psycopg3):
+The jobs target a **Lakebase Autoscaling project** and connect with **machine-to-machine (M2M) OAuth** — there are no static passwords. Each job runs as a Databricks **service principal**, and the shared helper [`lakebase_utils.py`](https://github.com/databricks-solutions/lakets/blob/main/databricks/workflows/lakebase_utils.py) resolves the project's primary read-write endpoint and mints a short-lived Postgres credential for that identity on every connection, following the [psycopg3 connection pattern](https://docs.databricks.com/aws/en/oltp/instances/query/notebook#psycopg3):
 
 ```python
-cred = w.database.generate_database_credential(
-    request_id=str(uuid.uuid4()), instance_names=[instance_name])
+# Resolve projects/<name> -> default branch -> read-write endpoint, then:
+endpoint = "projects/<project>/branches/production/endpoints/<id>"
+host = w.postgres.get_endpoint(name=endpoint).status.hosts.host
+cred = w.postgres.generate_database_credential(endpoint=endpoint)
 # cred.token is used as the Postgres password; it is minted inside connect()
 # so any reconnect transparently gets a fresh, non-expired token (~1 h lifetime).
 ```
 
-You need a service principal to run these jobs, **and that service principal must have permission on the Lakebase instance to perform the operations** the jobs execute (creating/dropping partitions, refreshing RollUps, enforcing retention).
+The `lakebase_project` bundle variable names the project (e.g. `lakets-tiering-test`); set `LAKETS_LAKEBASE_ENDPOINT` to skip resolution and pin a specific endpoint path.
+
+You need a service principal to run these jobs, **and that service principal must have permission on the Lakebase project to perform the operations** the jobs execute (creating/dropping partitions, refreshing RollUps, enforcing retention).
 
 ### 1. A service principal executes the jobs
 
@@ -60,10 +64,12 @@ targets:
       service_principal_name: ${var.service_principal_name}
 ```
 
-Deploy with the service principal's application ID:
+Deploy with the service principal's application ID and the target Lakebase project:
 
 ```bash
-databricks bundle deploy -t prod --var="service_principal_name=<sp-application-id>"
+databricks bundle deploy -t prod \
+  --var="service_principal_name=<sp-application-id>" \
+  --var="lakebase_project=<project-name>"
 ```
 
 The service principal must have **indefinitely-lived OAuth (M2M) credentials**; follow [Authorize service principal access to Databricks with OAuth](https://docs.databricks.com/aws/en/dev-tools/auth/oauth-m2m) and [Obtain an OAuth token in a machine-to-machine flow](https://docs.databricks.com/aws/en/oltp/instances/authentication#obtain-an-oauth-token-in-a-machine-to-machine-flow). Inside a Databricks job the SDK resolves this identity automatically; to run a job file **outside** Databricks, supply the same credentials via the standard environment variables:
@@ -74,11 +80,11 @@ export DATABRICKS_CLIENT_ID="<sp-application-id>"
 export DATABRICKS_CLIENT_SECRET="<sp-oauth-secret>"
 ```
 
-(Requires `databricks-sdk >= 0.56.0`.)
+(Requires `databricks-sdk >= 0.81.0` for the Autoscaling `w.postgres` API.)
 
 ### 2. The service principal needs a Lakebase Postgres role
 
-The OAuth token authenticates as a **Postgres role named after the service principal**. That role must exist on the Lakebase instance and be granted the privileges the jobs use. Connect as a Lakebase admin and grant, for example:
+The OAuth token authenticates as a **Postgres role named after the service principal**. That role must exist on the Lakebase project's branch and be granted the privileges the jobs use. Connect as a Lakebase admin and grant, for example:
 
 ```sql
 -- Register the service principal as a Postgres role (Databricks-managed identity)

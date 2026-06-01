@@ -25,9 +25,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("lakets.rollup_refresh")
 
 
-def run(instance_name: str):
+def run(project_name: str):
     """Refresh all RollUps."""
-    with lakebase_cursor(instance_name) as cur:
+    with lakebase_cursor(project_name) as cur:
         rollups = fetch_all(cur, """
             SELECT name, refresh_lag, last_refreshed_at, watermark
             FROM lakets._rollup_registry
@@ -62,5 +62,5 @@ def run(instance_name: str):
 
 
 if __name__ == "__main__":
-    instance = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_INSTANCE"]
-    run(instance)
+    project = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_PROJECT"]
+    run(project)
