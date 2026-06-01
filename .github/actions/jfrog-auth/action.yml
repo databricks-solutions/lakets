@@ -41,10 +41,16 @@ runs:
     - name: Configure pip for JFrog
       if: "${{ steps.detect-cmds.outputs.command_pip3 == 'true' }}"
       shell: bash
+      env:
+        JFROG_ACCESS_TOKEN: "${{ steps.jfrog-auth.outputs.jfrog-access-token }}"
       run: |
-        cat > "${RUNNER_TEMP}/.pip.conf" << 'EOF'
+        # Embed the OIDC token as basic-auth in the index URL. Without it,
+        # the db-pypi index challenges for credentials and pip blocks on an
+        # interactive "User for databricks.jfrog.io:" prompt (EOFError in CI).
+        umask 077
+        cat > "${RUNNER_TEMP}/.pip.conf" << EOF
         [global]
-        index-url = https://databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple
+        index-url = https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple
         EOF
         printf '%s=%s\n' 'PIP_CONFIG_FILE' "${RUNNER_TEMP}/.pip.conf" >> "${GITHUB_ENV}"
         printf '::debug::%s\n' 'Configured JFrog access for pip.'
