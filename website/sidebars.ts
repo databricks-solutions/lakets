@@ -43,7 +43,7 @@ const sidebars: SidebarsConfig = {
         "guides/how-it-works/chronotables",
         "guides/how-it-works/time-series-functions",
         "guides/how-it-works/rollups",
-        "guides/how-it-works/compression-and-retention",
+        "guides/how-it-works/tiering-and-retention",
         "guides/how-it-works/lakebase-cdf-internals",
       ],
     },

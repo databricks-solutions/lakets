@@ -96,7 +96,7 @@ Lists all partitions for a ChronoTable with metadata.
 | `chunk_name` | TEXT | Partition name (e.g., `sensor_data_20260401_000000`) |
 | `range_start` | TIMESTAMPTZ | Partition lower bound |
 | `range_end` | TIMESTAMPTZ | Partition upper bound |
-| `status` | TEXT | `active`, `compressed`, `tiered`, or `dropped` |
+| `status` | TEXT | `active`, `tiered`, or `dropped` |
 | `row_count` | BIGINT | Approximate row count |
 | `size_bytes` | BIGINT | Partition size on disk |
 | `created_at` | TIMESTAMPTZ | When the partition was created |

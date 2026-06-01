@@ -27,11 +27,48 @@ SELECT * FROM lakets.lakets_metrics();
 
 Chunk counts are emitted as a single `lakets_chunks_total` metric labelled by `status` (one row per status), and RollUp lag is emitted as two metrics: `lakets_rollup_watermark_lag_seconds` and `lakets_rollup_refresh_lag_seconds`.
 
+### Tiering metrics
+
+`lakets_metrics()` emits three per-table tiering metrics (labelled by `table`):
+
+| Metric | Meaning |
+|--------|---------|
+| `lakets_tiering_pending_chunks{table}` | Chunks eligible for eviction that have not been dropped yet |
+| `lakets_tiering_tiered_chunks_total{table}` | Total chunks dropped from Lakebase and now `tiered` |
+| `lakets_tiering_caught_up{table}` | `1` when the durability gate currently passes for all pending chunks, else `0` |
+
 ## `chunk_health()`
 
 Per-ChronoTable chunk-health breakdown.
 
-**Returns**: TABLE — `hypertable`, `total_chunks`, `active_chunks`, `compressed_chunks`, `tiered_chunks`, `dropped_chunks`, `oldest_active`, `newest_active`
+**Returns**: TABLE — `hypertable`, `total_chunks`, `active_chunks`, `tiered_chunks`, `dropped_chunks`, `oldest_active`, `newest_active`
+
+## `show_tiering_status(p_table_name, p_schema_name)`
+
+Per-ChronoTable view of tiering progress and CDF durability — the function to reach for when chunks aren't being evicted. Both parameters are optional; with no arguments it reports every table that has a tiering policy.
+
+**Returns**: TABLE
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `schema_name` | TEXT | Schema of the ChronoTable |
+| `table_name` | TEXT | ChronoTable name |
+| `after` | TEXT | Policy threshold (e.g. `7 days`) |
+| `active_chunks` | INT | Chunks still resident in Lakebase |
+| `tiered_chunks` | INT | Chunks dropped from Lakebase (data in UC) |
+| `pending_chunks` | INT | Chunks eligible for eviction but not yet dropped |
+| `reclaimable_bytes` | BIGINT | Lakebase storage that pending chunks would free |
+| `reclaimed_bytes` | BIGINT | Lakebase storage already freed by tiered chunks |
+| `cdf_status` | TEXT | `STREAMING`, `SKIPPED`, or `NONE` |
+| `cdf_lag_bytes` | BIGINT | How far CDF must still flush before the gate passes |
+| `caught_up` | BOOLEAN | `TRUE` when the gate passes for all pending chunks |
+| `last_run_at` | TIMESTAMPTZ | Last time the tiering job ran for this table |
+
+Read `cdf_status` as:
+
+- **`NONE`** — sync was never enabled for this table (`lakets.enable_sync()` not called).
+- **`SKIPPED`** — the shadow exists but isn't streaming (e.g. missing `REPLICA IDENTITY FULL`).
+- **`STREAMING`** — CDF is healthy; eviction can proceed once `caught_up` is `TRUE`.
 
 ## `query_stats(p_limit)`
 

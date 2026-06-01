@@ -14,7 +14,7 @@ Start here for the high-level picture, then follow the topic pages for each subs
 - **[ChronoTables](./chronotables.md)** — how time-partitioned tables work under the hood
 - **[Time series functions](./time-series-functions.md)** — `time_bucket`, `first`, `locf`, `interpolate`, `delta`, `rate`, `gapfill`
 - **[RollUps](./rollups.md)** — incremental aggregates, DAG cascade, scale optimizations (chunk-skip pruning, batch refresh, Unity Catalog export)
-- **[Compression & retention](./compression-and-retention.md)** — lifecycle policies and chunk drops
+- **[Tiering & retention](./tiering-and-retention.md)** — lifecycle policies, the CDF durability gate, and chunk drops
 - **[Lakebase CDF internals](./lakebase-cdf-internals.md)** — shadow tables, triggers, CDC routing
 
 For a worked example following a single sensor reading from ingest through retention, see [Life of a sensor reading](../../examples/sensor-reading-journey.md).
@@ -64,7 +64,7 @@ LakeTS is built from these Postgres primitives — no custom extensions:
 | Gap-filling | `generate_series()` + `LEFT JOIN` |
 | RollUps | Regular `TABLE` + incremental refresh + `UNION ALL` view |
 | RollUp optimization | Chunk-skip pruning, batch `ANY(array)`, Kahn's toposort, transition tables |
-| Compression / tiering | `_policy_registry` + Databricks Jobs |
+| Tiering | `_policy_registry` + Databricks Jobs + CDF durability gate |
 | Retention | `DROP TABLE` on expired partitions |
 | Lakebase CDF | Shadow table + trigger + `wal2delta` CDC |
 | Monitoring | SQL functions over `pg_stat_*` + metadata |

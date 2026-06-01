@@ -15,7 +15,7 @@ Pick the task you need to do — every page is self-contained:
 - **[Last Value Cache](./last-value-cache.md)** — sub-10ms reads for status widgets and "current value" tiles.
 - **[Bulk ingest](./bulk-ingest.md)** — write batches from edge devices, protocol adapters, or other writers using the JSONB ingest function.
 - **[Alerts](./alerts.md)** — SQL-native threshold and deadman alerts that run inside Lakebase.
-- **[Data lifecycle](./lifecycle.md)** — add compression, retention, and tiered retention policies so old data tiers to Unity Catalog and eventually drops.
+- **[Data lifecycle](./lifecycle.md)** — add tiering, retention, and tiered retention policies so old data tiers to Unity Catalog and eventually drops.
 - **[Monitoring](./monitoring.md)** — query operational metrics, chunk health, and top queries from inside Lakebase.
 - **[Manage tag cardinality](./cardinality.md)** — track distinct tag values to prevent label explosion in multi-metric ChronoTables.
 - **[Sync to Unity Catalog](./export-to-uc.md)** — expose RollUp Tables to Spark, BI, and ML pipelines via Lakebase CDF.

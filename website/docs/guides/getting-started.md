@@ -185,4 +185,4 @@ Now you can think about how the application or dashboard reads the data:
 - [Reference](../reference/index.md) — full catalog of 73 functions, 2 aggregates, 6 triggers, 9 metadata tables — organized by topic
 - [Life of a sensor reading](../examples/sensor-reading-journey.md) — end-to-end worked example
 - [Troubleshooting](../troubleshooting.md) — when something doesn't behave the way you expect
-- [Databricks workflows](https://github.com/databricks-solutions/lakets/blob/main/databricks/bundles/databricks.yml) — automated partition management, compression, retention, and aggregate refresh
+- [Databricks workflows](https://github.com/databricks-solutions/lakets/blob/main/databricks/bundles/databricks.yml) — automated partition management, tiering, retention, and aggregate refresh

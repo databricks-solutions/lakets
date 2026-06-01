@@ -30,7 +30,7 @@ Upgrade guard: prevents downgrade or re-install of the same version.
 | `chunk_interval` | INTERVAL | Partition size (default `7 days`) |
 | `space_column` | TEXT | Optional secondary (hash) partition column |
 | `space_partitions` | INT | Number of space partitions (default `1`) |
-| `compression_enabled` | BOOLEAN | Whether a compression policy is active |
+| `tiering_enabled` | BOOLEAN | Whether a tiering policy is active |
 | `retention_interval` | INTERVAL | Retention window, if a policy is set |
 | `shadow_table_name` | TEXT | `lakets_cdf` shadow table name when sync is enabled |
 | `sync_enabled` | BOOLEAN | Whether Lakebase CDF sync is enabled |
@@ -46,11 +46,11 @@ Upgrade guard: prevents downgrade or re-install of the same version.
 | `chunk_name` | TEXT | Partition name |
 | `range_start` | TIMESTAMPTZ | Lower bound |
 | `range_end` | TIMESTAMPTZ | Upper bound |
-| `status` | TEXT | `active` / `compressed` / `tiered` / `dropped` |
+| `status` | TEXT | `active` / `tiered` / `dropped` |
 | `row_count` | BIGINT | Estimated rows in the chunk |
 | `size_bytes` | BIGINT | Estimated chunk size on disk |
-| `compressed_at` | TIMESTAMPTZ | When the chunk was compressed/tiered out |
-| `tiered_at` | TIMESTAMPTZ | When the chunk was tiered to Delta |
+| `tiered_at` | TIMESTAMPTZ | When the chunk was tiered (partition dropped) |
+| `last_write_lsn` | PG_LSN | WAL position of the chunk's most recent write (used by the tiering durability gate) |
 | `last_modified_at` | TIMESTAMPTZ | Last write timestamp (powers chunk-skip pruning) |
 | `created_at` | TIMESTAMPTZ | Creation time |
 
@@ -93,7 +93,7 @@ Upgrade guard: prevents downgrade or re-install of the same version.
 |--------|------|-------------|
 | `id` | SERIAL | Policy ID |
 | `chronotable_id` | INT | FK to `_chronotable_registry` |
-| `policy_type` | TEXT | `compression` / `retention` / `tiered_retention` |
+| `policy_type` | TEXT | `tiering` / `retention` / `tiered_retention` |
 | `config` | JSONB | Policy parameters |
 | `enabled` | BOOLEAN | Active flag |
 | `last_run_at` | TIMESTAMPTZ | Last execution time |

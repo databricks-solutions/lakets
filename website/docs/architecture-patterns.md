@@ -26,7 +26,7 @@ LakeTS's signature pattern. Recent data lives in Lakebase (Postgres) for sub-10m
 - BI/analysis runs over weeks or months of history
 - You want one query surface (LakeTS routes hot/cold automatically)
 
-**LakeTS pieces**: `ChronoTable`, `lakets.compression_policy`, `lakets.tiering_policy`, Lakebase CDF.
+**LakeTS pieces**: `ChronoTable`, `lakets.add_tiering_policy`, Lakebase CDF.
 
 ## 2. Streaming ingest → hot tier → rollup
 

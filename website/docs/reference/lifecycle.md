@@ -2,57 +2,61 @@
 title: Lifecycle policies
 sidebar_label: Lifecycle policies
 sidebar_position: 4
-description: Compression, tiering, and retention policy functions.
+description: Tiering and retention policy functions.
 ---
 
 # Lifecycle policies
 
 Functions that govern how chunks age out of the hot tier (Lakebase) and eventually out of the cold tier (Unity Catalog Managed Table). The actual data movement is performed by Databricks Jobs on a schedule; these functions register the policy + provide manual overrides.
 
-## Compression & tiering
+## Tiering
 
-Tiering policies move data from the hot tier to the cold tier based on age. The Databricks Compression & Tiering job (daily at 2 AM) drives the actual movement.
+Tiering evicts data from the hot tier (Lakebase) once Lakebase CDF has durably flushed it to the cold tier (Unity Catalog Managed Table), based on age. The Databricks Tiering job (daily at 2 AM) drives the actual eviction.
 
-### `add_compression_policy(p_table_name, p_compress_after, p_segment_by, p_order_by, p_schema_name)`
+CDF must be enabled and the table CDF-synced via `lakets.enable_sync()` before anything is evicted — see [Lakebase CDF Setup](../guides/lakebase-cdf-setup.md).
 
-Registers a tiering policy for a ChronoTable.
+### `add_tiering_policy(p_table_name, p_after, p_schema_name)`
+
+Registers a tiering policy for a ChronoTable. Also installs the triggers that stamp each chunk's `last_write_lsn` (used by the durability gate). Creates the policy even if the table isn't CDF-synced yet (with a NOTICE), but nothing is evicted until sync and CDF are live.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `p_table_name` | TEXT | — | ChronoTable name |
-| `p_compress_after` | INTERVAL | — | Tier chunks older than this |
-| `p_segment_by` | TEXT | `NULL` | Column for segment optimization in the cold tier |
-| `p_order_by` | TEXT | `NULL` | Column for Z-order optimization in the cold tier |
+| `p_after` | INTERVAL | — | Evict chunks older than this |
 | `p_schema_name` | TEXT | `'public'` | Schema |
 
 **Returns**: `INT` — policy_id
 
 ```sql
--- Tier data older than 30 days, segment by device_id
-SELECT lakets.add_compression_policy(
-    'sensor_data', '30 days',
-    p_segment_by => 'device_id',
-    p_order_by   => 'time'
-);
+-- Evict chunks older than 7 days
+SELECT lakets.add_tiering_policy('metrics', '7 days');
 ```
 
-### `compress_chunk(p_chunk_name)` / `decompress_chunk(p_chunk_name)`
+### `tier_chunk(p_chunk_name)`
 
-Manually mark a specific chunk for tiering to the cold tier or for re-ingestion from cold back to Lakebase.
+Drops the chunk's Lakebase partition and marks it `tiered` — but **only if the durability gate passes** (the chunk's CDF shadow is `STREAMING` and CDF's `committed_lsn` for that shadow is `>=` the chunk's own `last_write_lsn`). The gate is fail-closed.
 
-### `show_compression_policy(p_table_name, p_schema_name)`
+**Returns**: `BOOLEAN` — `TRUE` if the partition was dropped, `FALSE` if deferred (retried on the next job run).
 
-Returns the compression/tiering policy for a ChronoTable.
+### `untier_chunk(p_chunk_name)`
 
-**Returns**: TABLE — `policy_id`, `compress_after`, `segment_by`, `order_by`, `enabled`, `last_run_at`
+Restores a `tiered` chunk's metadata to `active` — e.g. before re-ingesting it from the Unity Catalog Managed Table.
 
-### `remove_compression_policy(p_table_name, p_schema_name)`
+**Returns**: `VOID`
 
-Removes the compression/tiering policy.
+### `show_tiering_policy(p_table_name, p_schema_name)`
 
-### `_get_chunks_to_compress(p_table_name, p_schema_name)`
+Returns the tiering policy for a ChronoTable.
 
-Internal. Returns chunks eligible for tiering (active chunks older than the `compress_after` threshold). Called by the Databricks Compression & Tiering workflow.
+**Returns**: TABLE — `policy_id` (INT), `after` (TEXT), `enabled` (BOOLEAN), `last_run_at` (TIMESTAMPTZ)
+
+### `remove_tiering_policy(p_table_name, p_schema_name)`
+
+Removes the tiering policy.
+
+### `_get_chunks_to_tier(p_table_name, p_schema_name)`
+
+Internal. Returns chunks eligible for tiering (active chunks older than the `after` threshold). Called by the Databricks Tiering workflow, which then calls `tier_chunk()` per candidate.
 
 ## Retention
 
