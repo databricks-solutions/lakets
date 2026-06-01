@@ -37,12 +37,35 @@ BEGIN
     LEFT JOIN pg_stat_user_tables s
         ON s.schemaname = hr.schema_name AND s.relname = hr.table_name;
 
-    -- Compression policy status
+    -- Tiering: eligible-but-not-yet-dropped chunks per table.
     RETURN QUERY
-    SELECT 'lakets_compression_enabled'::TEXT,
-           (CASE WHEN hr.compression_enabled THEN 1 ELSE 0 END)::DOUBLE PRECISION,
+    SELECT 'lakets_tiering_pending_chunks'::TEXT,
+           count(*) FILTER (WHERE cm.status = 'active'
+                            AND cm.range_end <= now() - (pr.config->>'after')::INTERVAL)::DOUBLE PRECISION,
            jsonb_build_object('table', hr.schema_name || '.' || hr.table_name)
-    FROM lakets._chronotable_registry hr;
+    FROM lakets._chronotable_registry hr
+    JOIN lakets._policy_registry pr ON hr.id = pr.chronotable_id AND pr.policy_type = 'tiering'
+    LEFT JOIN lakets._chunk_metadata cm ON cm.chronotable_id = hr.id
+    GROUP BY hr.schema_name, hr.table_name;
+
+    -- Tiering: chunks tiered to date per table.
+    RETURN QUERY
+    SELECT 'lakets_tiering_tiered_chunks_total'::TEXT,
+           count(*) FILTER (WHERE cm.status = 'tiered')::DOUBLE PRECISION,
+           jsonb_build_object('table', hr.schema_name || '.' || hr.table_name)
+    FROM lakets._chronotable_registry hr
+    JOIN lakets._policy_registry pr ON hr.id = pr.chronotable_id AND pr.policy_type = 'tiering'
+    LEFT JOIN lakets._chunk_metadata cm ON cm.chronotable_id = hr.id
+    GROUP BY hr.schema_name, hr.table_name;
+
+    -- Tiering: CDF caught-up flag per table (1 = durability gate currently passes).
+    RETURN QUERY
+    SELECT 'lakets_tiering_caught_up'::TEXT,
+           (CASE WHEN lakets._cdf_committed_lsn(hr.shadow_table_name) >= pg_current_wal_lsn()
+                 THEN 1 ELSE 0 END)::DOUBLE PRECISION,
+           jsonb_build_object('table', hr.schema_name || '.' || hr.table_name)
+    FROM lakets._chronotable_registry hr
+    JOIN lakets._policy_registry pr ON hr.id = pr.chronotable_id AND pr.policy_type = 'tiering';
 
     -- RollUp watermark lag (seconds between now and watermark per RollUp)
     RETURN QUERY
@@ -100,7 +123,6 @@ RETURNS TABLE (
     hypertable TEXT,
     total_chunks BIGINT,
     active_chunks BIGINT,
-    compressed_chunks BIGINT,
     tiered_chunks BIGINT,
     dropped_chunks BIGINT,
     oldest_active TIMESTAMPTZ,
@@ -114,7 +136,6 @@ BEGIN
         hr.schema_name || '.' || hr.table_name,
         count(*)::BIGINT,
         count(*) FILTER (WHERE cm.status = 'active')::BIGINT,
-        count(*) FILTER (WHERE cm.status = 'compressed')::BIGINT,
         count(*) FILTER (WHERE cm.status = 'tiered')::BIGINT,
         count(*) FILTER (WHERE cm.status = 'dropped')::BIGINT,
         min(cm.range_start) FILTER (WHERE cm.status = 'active'),
