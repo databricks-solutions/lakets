@@ -92,7 +92,7 @@ Generates a continuous series of time buckets between start and finish. Use with
 |-----------|------|---------|-------------|
 | `p_interval` | INTERVAL | — | Bucket width |
 | `p_start` | TIMESTAMPTZ | — | Series start (inclusive) |
-| `p_finish` | TIMESTAMPTZ | — | Series end (exclusive) |
+| `p_finish` | TIMESTAMPTZ | — | Series end (inclusive — the bucket aligned to `p_finish` is included) |
 
 **Returns**: `SETOF TIMESTAMPTZ`
 
@@ -219,7 +219,7 @@ Returns a **bucket index** for frequency-distribution analysis.
 | `p_max` | DOUBLE PRECISION | Histogram upper bound |
 | `p_num_buckets` | INT | Number of equal-width buckets |
 
-**Returns**: `INT` — bucket index (0-based). `NULL` for NULL input, `-1` for below min, `p_num_buckets` for above max.
+**Returns**: `INT` — bucket index (0-based). `NULL` for NULL input. Out-of-range values are clamped: below `p_min` returns `0`, at or above `p_max` returns `p_num_buckets - 1`.
 
 ```sql
 -- Distribution of response times in 10 buckets between 0 and 1000ms

@@ -18,14 +18,14 @@ Converts a regular table into a time-partitioned ChronoTable. The primary entry 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `p_table_name` | TEXT | — | Name of the existing table to convert |
-| `p_time_column` | TEXT | — | Column used for partitioning (must be TIMESTAMPTZ) |
+| `p_time_column` | TEXT | — | Column used for partitioning (must be TIMESTAMPTZ, TIMESTAMP, or DATE) |
 | `p_chunk_interval` | INTERVAL | `'7 days'` | Size of each partition |
 | `p_schema_name` | TEXT | `'public'` | Schema of the table |
 
 **Returns**: `INT` — the chronotable_id assigned in `_chronotable_registry`
 
 **What happens internally**:
-1. Validates the table exists and the time column is TIMESTAMPTZ
+1. Validates the table exists and the time column is TIMESTAMPTZ, TIMESTAMP, or DATE
 2. Renames the original table to a temporary name
 3. Creates a new partitioned table with `PARTITION BY RANGE (time_column)`
 4. Scans existing data to determine the min/max time range
@@ -54,7 +54,7 @@ The original v1 name for ChronoTable creation. Identical behavior to `create_chr
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `p_table_name` | TEXT | — | Table to convert |
-| `p_time_column` | TEXT | — | Time column (TIMESTAMPTZ) |
+| `p_time_column` | TEXT | — | Time column (TIMESTAMPTZ, TIMESTAMP, or DATE) |
 | `p_chunk_interval` | INTERVAL | `'7 days'` | Partition interval |
 | `p_schema_name` | TEXT | `'public'` | Schema |
 | `p_if_not_exists` | BOOLEAN | `FALSE` | Skip if already a ChronoTable |
@@ -125,6 +125,24 @@ Drops partitions older than a given interval. Used for manual cleanup or by the 
 -- Drop data older than 90 days
 SELECT lakets.drop_chunks('sensor_data', '90 days');
 -- Returns: 12 (dropped 12 partitions)
+```
+
+## `drop_chronotable(p_table_name, p_schema_name)`
+
+Fully removes a ChronoTable and everything LakeTS attached to it. The canonical teardown path — use this instead of a bare `DROP TABLE`, which would leave orphaned registry rows and shadow objects behind.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `p_table_name` | TEXT | — | ChronoTable name |
+| `p_schema_name` | TEXT | `'public'` | Schema |
+
+**Returns**: `VOID`
+
+**What it cleans up**, in order: the Last Value Cache (if enabled), Lakebase CDF shadow sync (if enabled), any RollUps built on the table, downsampling pipelines, the `_chronotable_registry` and `_chunk_metadata` entries, and finally the physical partitioned table itself (with `CASCADE`).
+
+```sql
+-- Remove a ChronoTable and all associated LakeTS state
+SELECT lakets.drop_chronotable('sensor_data');
 ```
 
 ## Internal helpers

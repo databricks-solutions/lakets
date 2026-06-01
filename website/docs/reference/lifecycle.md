@@ -98,3 +98,7 @@ Runs the retention policy — drops expired chunks. Called by the Databricks Ret
 ### `show_retention_policy(p_table_name, p_schema_name)` / `remove_retention_policy(p_table_name, p_schema_name)`
 
 View or remove the retention policy for a ChronoTable.
+
+`show_retention_policy` **returns**: TABLE — `policy_id`, `policy_type` (`'retention'` or `'tiered_retention'`), `drop_after`, `tier_after`, `enabled`, `last_run_at`.
+
+`remove_retention_policy` **returns**: `VOID`.

@@ -19,11 +19,13 @@ Metrics include total ChronoTables, total chunks by status, RollUp refresh lag, 
 
 ```sql
 SELECT * FROM lakets.lakets_metrics();
--- lakets_chronotables_total  | 5    | {}
--- lakets_chunks_active       | 127  | {}
--- lakets_chunks_tiered       | 340  | {}
--- lakets_rollup_lag_seconds  | 45.2 | {"rollup": "hourly_sensors"}
+-- lakets_hypertables_total          | 5    | {}
+-- lakets_chunks_total               | 127  | {"status": "active"}
+-- lakets_chunks_total               | 340  | {"status": "tiered"}
+-- lakets_rollup_refresh_lag_seconds | 45.2 | {"rollup": "hourly_sensors"}
 ```
+
+Chunk counts are emitted as a single `lakets_chunks_total` metric labelled by `status` (one row per status), and RollUp lag is emitted as two metrics: `lakets_rollup_watermark_lag_seconds` and `lakets_rollup_refresh_lag_seconds`.
 
 ## `chunk_health()`
 
