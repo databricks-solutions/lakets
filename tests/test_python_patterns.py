@@ -122,6 +122,13 @@ class TestRollupRefreshPatterns:
         assert "failures.append" in source, \
             "rollup_refresh.py should append to failures list"
 
+    def test_refreshes_in_dag_order(self):
+        """T16: rollup_refresh uses refresh_rollup_cascade (DAG order), not an
+        alphabetical refresh_rollup() loop that ignores dependencies."""
+        source = _read_source(self.SOURCE_PATH)
+        assert "refresh_rollup_cascade" in source, \
+            "rollup_refresh.py should refresh via refresh_rollup_cascade() for DAG-correct order"
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Schema-drift guard

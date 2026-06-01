@@ -1,8 +1,9 @@
 """
 LakeTS RollUp Refresh Job
-Refreshes all RollUps (incremental where configured).
+Refreshes all RollUps in dependency (DAG) order via refresh_rollup_cascade(),
+so a parent RollUp always reads freshly-refreshed children within one run.
 
-Schedule: Every 15 minutes (configurable per RollUp via refresh_lag).
+Schedule: configurable; each RollUp self-gates on its refresh_lag.
 """
 import logging
 import os
@@ -25,37 +26,31 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("lakets.rollup_refresh")
 
 
-def run(project_name: str):
-    """Refresh all RollUps."""
+def run(project_name: str) -> int:
+    """Refresh all RollUps in DAG order. Each RollUp self-gates on refresh_lag,
+    so children are refreshed before the parents that read them."""
     with lakebase_cursor(project_name) as cur:
-        rollups = fetch_all(cur, """
-            SELECT name, refresh_lag, last_refreshed_at, watermark
-            FROM lakets._rollup_registry
-            ORDER BY name
-        """)
-        logger.info("Found %d RollUp(s)", len(rollups))
-
-        refreshed = 0
-        skipped = 0
         failures = []
-        for rollup in rollups:
-            try:
-                cur.execute(
-                    "SELECT lakets.refresh_rollup(%s)",
-                    (rollup["name"],),
-                )
-                result = cur.fetchone()[0]
-                if result:
-                    refreshed += 1
-                    logger.info("Refreshed: %s", rollup["name"])
-                else:
-                    skipped += 1
-                    logger.info("Skipped (refresh_lag): %s", rollup["name"])
-            except Exception as e:
-                logger.error("Failed to refresh %s: %s", rollup["name"], e)
-                failures.append(rollup["name"])
+        try:
+            results = fetch_all(cur, """
+                SELECT rollup_name, refreshed, refresh_ms
+                FROM lakets.refresh_rollup_cascade()
+            """)
+        except Exception as e:
+            # Whole-cascade failure (e.g. a broken RollUp query). Surface it.
+            failures.append("refresh_rollup_cascade")
+            logger.error("Cascade refresh failed: %s", e)
+            raise
 
-        logger.info("Refreshed %d, skipped %d / %d total", refreshed, skipped, len(rollups))
+        refreshed = sum(1 for r in results if r["refreshed"])
+        skipped = len(results) - refreshed
+        for r in results:
+            if r["refreshed"]:
+                logger.info("Refreshed: %s (%.1f ms)", r["rollup_name"], r["refresh_ms"] or 0.0)
+            else:
+                logger.info("Skipped (refresh_lag): %s", r["rollup_name"])
+
+        logger.info("Refreshed %d, skipped %d / %d total", refreshed, skipped, len(results))
         if failures:
             logger.error("Failed refreshes: %s", ", ".join(failures))
         return refreshed

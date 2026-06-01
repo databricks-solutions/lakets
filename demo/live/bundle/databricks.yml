@@ -1,0 +1,140 @@
+bundle:
+  name: lakets-live-demo
+
+# Reuses the repo's production maintenance jobs (databricks/workflows/*.py) so the
+# demo never drifts from the shipped code — it only adds stream_ticks. Both source
+# dirs are synced to the workspace; the reused jobs sit next to lakebase_utils.py
+# so their sibling import resolves.
+sync:
+  paths:
+    - ../../../databricks/workflows
+    - ../notebooks
+
+variables:
+  lakebase_project:
+    description: "Lakebase Autoscaling project name (e.g. lakets-tiering-test)"
+  service_principal_name:
+    description: "Service principal the jobs run as (prod target). Must own a Lakebase Postgres role."
+    default: ""
+  symbols_count:
+    description: "stream_ticks: number of symbols (10/100/1000)"
+    default: "10"
+  rows_per_sec:
+    description: "stream_ticks: ingest rate (1/10/100/1000)"
+    default: "10"
+  burst_mode:
+    description: "stream_ticks: periodic 10k-row bursts (on/off)"
+    default: "off"
+
+resources:
+  jobs:
+    # -------------------------------------------------------------------
+    # stream_ticks — continuous ingest. The heartbeat of the demo (demo-only).
+    # -------------------------------------------------------------------
+    lakets_demo_stream_ticks:
+      name: "[LakeTS Demo] stream_ticks (continuous)"
+      description: "Continuously writes synthetic ticks to stock_ticks."
+      max_concurrent_runs: 1
+      continuous:
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: stream
+          notebook_task:
+            notebook_path: ../notebooks/stream_ticks.py
+            base_parameters:
+              lakebase_project: ${var.lakebase_project}
+              symbols_count: ${var.symbols_count}
+              rows_per_sec: ${var.rows_per_sec}
+              burst_mode: ${var.burst_mode}
+              duration_minutes: "0"
+          environment_key: demo_env
+      environments: &demo_envs
+        - environment_key: demo_env
+          spec:
+            client: "3"
+            dependencies:
+              - "psycopg[binary]>=3.1,<4.0"
+              - "databricks-sdk>=0.81.0,<1.0.0"
+
+    # -------------------------------------------------------------------
+    # partition_manager — every 5 min. Watch partitions appear. (repo job)
+    # -------------------------------------------------------------------
+    lakets_demo_partition_manager:
+      name: "[LakeTS Demo] partition_manager"
+      schedule:
+        quartz_cron_expression: "0 */5 * * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      environments: *demo_envs
+      tasks:
+        - task_key: ensure_partitions
+          spark_python_task:
+            python_file: ../../../databricks/workflows/partition_manager.py
+            parameters:
+              - ${var.lakebase_project}
+          environment_key: demo_env
+
+    # -------------------------------------------------------------------
+    # rollup_refresh — every 1 min. Watermarks advance in DAG order. (repo job)
+    # -------------------------------------------------------------------
+    lakets_demo_rollup_refresh:
+      name: "[LakeTS Demo] rollup_refresh"
+      schedule:
+        quartz_cron_expression: "0 * * * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      environments: *demo_envs
+      tasks:
+        - task_key: refresh_rollups
+          spark_python_task:
+            python_file: ../../../databricks/workflows/rollup_refresh.py
+            parameters:
+              - ${var.lakebase_project}
+          environment_key: demo_env
+
+    # -------------------------------------------------------------------
+    # tiering — every 5 min. Drops cold partitions once CDF has flushed them
+    # to Unity Catalog (durability-gated). (repo job)
+    # -------------------------------------------------------------------
+    lakets_demo_tiering:
+      name: "[LakeTS Demo] tiering"
+      schedule:
+        quartz_cron_expression: "0 */5 * * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      environments: *demo_envs
+      tasks:
+        - task_key: tier_cold_partitions
+          spark_python_task:
+            python_file: ../../../databricks/workflows/tiering_job.py
+            parameters:
+              - ${var.lakebase_project}
+          environment_key: demo_env
+
+    # -------------------------------------------------------------------
+    # retention — every 15 min. Hot tier shrinks; UC keeps history. (repo job)
+    # -------------------------------------------------------------------
+    lakets_demo_retention:
+      name: "[LakeTS Demo] retention"
+      schedule:
+        quartz_cron_expression: "0 */15 * * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      environments: *demo_envs
+      tasks:
+        - task_key: enforce_retention
+          spark_python_task:
+            python_file: ../../../databricks/workflows/retention_job.py
+            parameters:
+              - ${var.lakebase_project}
+          environment_key: demo_env
+
+targets:
+  dev:
+    mode: development
+    default: true
+
+  prod:
+    mode: production
+    run_as:
+      service_principal_name: ${var.service_principal_name}

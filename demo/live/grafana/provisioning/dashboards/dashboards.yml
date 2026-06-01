@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: lakets-live
+    orgId: 1
+    folder: LakeTS
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

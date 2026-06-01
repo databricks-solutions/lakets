@@ -1,0 +1,21 @@
+apiVersion: 1
+
+datasources:
+  - name: Lakebase
+    type: postgres
+    access: proxy
+    uid: lakebase
+    url: ${LAKEBASE_HOST}:${LAKEBASE_PORT}
+    database: ${LAKEBASE_DATABASE}
+    user: ${LAKEBASE_USER}
+    secureJsonData:
+      password: ${LAKEBASE_PASSWORD}
+    jsonData:
+      sslmode: require
+      postgresVersion: 1600
+      timescaledb: false
+      maxOpenConns: 5
+      maxIdleConns: 2
+      connMaxLifetime: 3300
+    editable: true
+    isDefault: true

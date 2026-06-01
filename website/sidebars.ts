@@ -55,6 +55,12 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "category",
+      label: "Demos",
+      collapsed: false,
+      items: ["guides/live-demo"],
+    },
+    {
+      type: "category",
       label: "Reference",
       collapsed: false,
       items: [
