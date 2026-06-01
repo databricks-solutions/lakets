@@ -54,6 +54,11 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5.0.0
         with:
+          # upload-pages-artifact v4+ excludes dotfiles by default. Docusaurus
+          # emits `.nojekyll` into website/build so GitHub Pages skips Jekyll
+          # processing on `_next/`, `_static/`, etc. Without this opt-in,
+          # Pages would Jekyll-process the build and serve broken assets.
+          include-hidden-files: true
           path: website/build
 
   deploy:
