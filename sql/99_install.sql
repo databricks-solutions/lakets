@@ -24,7 +24,7 @@
 \ir 04_rollup.sql
 
 -- Step 5: Compression & tiering policies
-\ir 05_compression.sql
+\ir 05_tiering.sql
 
 -- Step 6: Retention policies
 \ir 06_retention.sql

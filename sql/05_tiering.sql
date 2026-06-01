@@ -1,7 +1,9 @@
 -- =============================================================================
--- LakeTS Compression & Tiering Policies
--- Register policies for automatic data tiering from Lakebase to Delta Lake.
--- Actual tiering is executed by Databricks workflow jobs.
+-- LakeTS Tiering Policies
+-- A tiering policy drops cold ChronoTable partitions to reclaim Lakebase
+-- storage. The data is already durable in the Unity Catalog Managed Table via
+-- Lakebase CDF; tiering only evicts partitions once CDF has flushed past them.
+-- Executed by the Databricks tiering job.
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------

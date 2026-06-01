@@ -31,7 +31,7 @@ MODULES=(
     "02_chronotable.sql"
     "03_timeseries_functions.sql"
     "04_rollup.sql"
-    "05_compression.sql"
+    "05_tiering.sql"
     "06_retention.sql"
     "07_monitoring.sql"
     "08_metric_table.sql"
