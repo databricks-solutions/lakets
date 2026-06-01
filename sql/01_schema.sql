@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS lakets._chronotable_registry (
     chunk_interval INTERVAL NOT NULL DEFAULT '7 days',
     space_column TEXT,
     space_partitions INT DEFAULT 1,
-    compression_enabled BOOLEAN DEFAULT FALSE,
+    tiering_enabled BOOLEAN DEFAULT FALSE,
     retention_interval INTERVAL,
     shadow_table_name TEXT,
     sync_enabled BOOLEAN DEFAULT FALSE,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS lakets._chunk_metadata (
     compressed_at TIMESTAMPTZ,
     tiered_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT valid_status CHECK (status IN ('active', 'compressed', 'tiered', 'dropped'))
+    CONSTRAINT valid_status CHECK (status IN ('active', 'tiered', 'dropped'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_chunk_metadata_hypertable
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS lakets._policy_registry (
     enabled BOOLEAN DEFAULT TRUE,
     last_run_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT valid_policy_type CHECK (policy_type IN ('compression', 'retention', 'tiered_retention'))
+    CONSTRAINT valid_policy_type CHECK (policy_type IN ('tiering', 'retention', 'tiered_retention'))
 );
 
 -- ---------------------------------------------------------------------------
