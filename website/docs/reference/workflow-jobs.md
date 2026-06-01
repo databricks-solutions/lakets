@@ -9,6 +9,8 @@ description: The Databricks Jobs that drive the operational lifecycle of LakeTS.
 
 These scheduled Databricks Jobs drive the operational lifecycle of LakeTS. The bundle at [`databricks/bundles/databricks.yml`](https://github.com/databricks-solutions/lakets/blob/main/databricks/bundles/databricks.yml) deploys all of them at once.
 
+All jobs run on **serverless compute** — there is no cluster to provision. Each runs its `databricks/workflows/*.py` file as a `spark_python_task`, and the Python dependencies (`psycopg[binary]`, `databricks-sdk`) are declared per job in the bundle's `environments` block.
+
 | Job | Schedule | What it does |
 |-----|----------|--------------|
 | **Partition Manager** | Every 6 h | Calls `_ensure_partitions()` — pre-creates future partitions |

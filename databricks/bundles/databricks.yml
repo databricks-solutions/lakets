@@ -19,7 +19,8 @@ variables:
 # The workflow source lives in ../workflows (a sibling of this bundle dir).
 # Sync it to the workspace so the spark_python_task files — and the shared
 # lakebase_utils.py they import — land together in one folder. No wheel is built;
-# the code runs directly and only external libraries are pip-installed (see libraries).
+# the code runs directly. Jobs run on serverless compute, so dependencies are
+# declared per-job in the `environments` block (not as task `libraries`).
 sync:
   paths:
     - ../workflows
@@ -32,20 +33,23 @@ resources:
       schedule:
         quartz_cron_expression: "0 0 */6 * * ?"  # Every 6 hours
         timezone_id: "UTC"
+      # Serverless environment installed for every job. Defined once here and
+      # reused via the *lakets_environments alias. `client` is the serverless
+      # environment version — bump it as Databricks ships newer versions.
+      environments: &lakets_environments
+        - environment_key: lakets_env
+          spec:
+            client: "3"
+            dependencies:
+              - "psycopg[binary]>=3.1,<4.0"
+              - "databricks-sdk>=0.56.0,<1.0.0"
       tasks:
         - task_key: ensure_partitions
           spark_python_task:
             python_file: ../workflows/partition_manager.py
             parameters:
               - ${var.lakebase_instance}
-          # pip-installed on the cluster before the task runs. Defined once here,
-          # reused by every other task via the *job_libraries alias.
-          libraries: &job_libraries
-            - pypi:
-                package: "psycopg[binary]>=3.1,<4.0"
-            - pypi:
-                package: "databricks-sdk>=0.56.0,<1.0.0"
-          existing_cluster_id: ${var.cluster_id}
+          environment_key: lakets_env
 
     lakets_tiering:
       name: "LakeTS - Tiering"
@@ -53,14 +57,14 @@ resources:
       schedule:
         quartz_cron_expression: "0 0 2 * * ?"  # Daily at 2 AM UTC
         timezone_id: "UTC"
+      environments: *lakets_environments
       tasks:
         - task_key: tier_cold_partitions
           spark_python_task:
             python_file: ../workflows/tiering_job.py
             parameters:
               - ${var.lakebase_instance}
-          libraries: *job_libraries
-          existing_cluster_id: ${var.cluster_id}
+          environment_key: lakets_env
 
     lakets_retention:
       name: "LakeTS - Retention"
@@ -68,14 +72,14 @@ resources:
       schedule:
         quartz_cron_expression: "0 0 3 * * ?"  # Daily at 3 AM UTC
         timezone_id: "UTC"
+      environments: *lakets_environments
       tasks:
         - task_key: enforce_retention
           spark_python_task:
             python_file: ../workflows/retention_job.py
             parameters:
               - ${var.lakebase_instance}
-          libraries: *job_libraries
-          existing_cluster_id: ${var.cluster_id}
+          environment_key: lakets_env
 
     lakets_rollup_refresh:
       name: "LakeTS - RollUp Refresh"
@@ -83,18 +87,19 @@ resources:
       schedule:
         quartz_cron_expression: "0 */15 * * * ?"  # Every 15 minutes
         timezone_id: "UTC"
+      environments: *lakets_environments
       tasks:
         - task_key: refresh_rollups
           spark_python_task:
             python_file: ../workflows/rollup_refresh.py
             parameters:
               - ${var.lakebase_instance}
-          libraries: *job_libraries
-          existing_cluster_id: ${var.cluster_id}
+          environment_key: lakets_env
 
     lakets_cold_rollup_refresh:
       name: "LakeTS - Cold-Tier RollUp Refresh"
       description: "Re-aggregates cold-tier dirty buckets from Delta Lake"
+      environments: *lakets_environments
       tasks:
         - task_key: cold_rollup_refresh
           spark_python_task:
@@ -103,15 +108,12 @@ resources:
               - ${var.lakebase_instance}
               - ${var.delta_catalog}
               - ${var.delta_schema}
-          libraries: *job_libraries
-          existing_cluster_id: ${var.cluster_id}
+          environment_key: lakets_env
 
 targets:
   dev:
     mode: development
     default: true
-    variables:
-      cluster_id: ""  # Set to your dev cluster ID
 
   prod:
     mode: production
@@ -120,5 +122,3 @@ targets:
     # privileges each job performs (see docs/reference/workflow-jobs).
     run_as:
       service_principal_name: ${var.service_principal_name}
-    variables:
-      cluster_id: ""  # Set to your prod cluster ID
