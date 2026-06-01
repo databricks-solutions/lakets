@@ -48,7 +48,7 @@ Warns if combined cardinality across all tag columns exceeds a threshold.
 | `p_max_series` | BIGINT | `100000` | Maximum allowed series count |
 | `p_schema_name` | TEXT | `'public'` | Schema |
 
-**Returns**: TABLE — `status` (`'OK'` or `'WARNING'`), `combined_cardinality`, `max_allowed`, `tag_columns`
+**Returns**: TABLE — `status` (`'OK'`, `'WARNING'` above 80% of the limit, or `'CRITICAL'` above the limit), `combined_cardinality`, `max_allowed`, `tag_columns`
 
 ```sql
 SELECT * FROM lakets.cardinality_check('system_metrics');

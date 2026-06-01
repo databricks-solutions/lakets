@@ -46,12 +46,12 @@ Detects **silent series** — groups that haven't reported data within the timeo
 | `p_timeout` | INTERVAL | — | Maximum silence before alerting |
 | `p_schema_name` | TEXT | `'public'` | Schema |
 
-**Returns**: TABLE — `alert_name`, `severity`, `fired_at`, `dead_key`, `last_seen`, `silent_for`
+**Returns**: TABLE — `alert_name`, `severity` (always `'critical'` for deadman alerts), `fired_at`, `dead_key`, `last_seen`, `silent_for`
 
 ```sql
 -- Alert if any device hasn't reported in 15 minutes
 SELECT * FROM lakets.alert_deadman(
     'device_heartbeat', 'sensor_data', 'device_id', '15 minutes'
 );
--- device_heartbeat | warning | 2026-04-09 10:30 | device-17 | 2026-04-09 10:12 | 00:18:00
+-- device_heartbeat | critical | 2026-04-09 10:30 | device-17 | 2026-04-09 10:12 | 00:18:00
 ```

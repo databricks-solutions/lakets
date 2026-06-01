@@ -43,9 +43,16 @@ SELECT lakets.create_downsample_pipeline(
 
 Returns the best UC Managed Table for a given time range — picks the finest resolution whose retention covers the requested range.
 
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `p_name` | TEXT | — | Downsample pipeline name |
+| `p_start` | TIMESTAMPTZ | — | Start of the requested range |
+| `p_end` | TIMESTAMPTZ | `now()` | End of the requested range |
+
 **Returns**: TABLE — `resolution`, `delta_table`, `covers_range`
 
 ```sql
+-- p_end defaults to now(), so a single bound queries "last 7 days"
 SELECT * FROM lakets.query_auto_resolution('sensor_multi_res', now() - interval '7 days');
 -- 00:01:00 | main.lakets_rollups.sensor_multi_res_1_minute | true
 ```
@@ -53,3 +60,7 @@ SELECT * FROM lakets.query_auto_resolution('sensor_multi_res', now() - interval 
 ## `show_downsample_pipelines()` / `drop_downsample_pipeline(p_name)`
 
 List or remove downsample pipelines.
+
+`show_downsample_pipelines` **returns**: TABLE — `name`, `source`, `intervals`, `retention`, `agg_expressions`, `delta_target`.
+
+`drop_downsample_pipeline` **returns**: `VOID`.

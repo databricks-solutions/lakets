@@ -57,7 +57,7 @@ SELECT lakets.create_rollup(
             max(max_temp) AS max_temp,
             min(min_temp) AS min_temp,
             sum(sample_count) AS sample_count
-       FROM lakets._rollup_hourly_sensors
+       FROM public._rollup_hourly_sensors
        GROUP BY 1, 2$$,
     '1 day',
     NULL, 'public',
@@ -183,7 +183,7 @@ Human-readable DAG visualization showing dependency relationships and refresh or
 
 ### `drop_rollup(p_name)`
 
-Drops a RollUp and all associated objects (table, real-time view, registry entry, invalidation-log entries).
+Drops a RollUp and all associated objects (table, real-time view, registry entry, invalidation-log entries, and — if Lakebase CDF sync was enabled — the `lakets_cdf` shadow table and its mirror trigger).
 
 **Returns**: `VOID`
 
@@ -219,7 +219,7 @@ SELECT * FROM lakets._get_dirty_chunks(1, '2026-04-01 00:00:00+00');
 ### Bulk-import invalidation
 
 - **`_bulk_import_invalidation()`** — statement-level `AFTER INSERT` trigger using `REFERENCING NEW TABLE` to capture the time range of all inserted rows (including `COPY FROM`)
-- **`_detect_bucket_column(p_query_text)`** — auto-detects the time-bucket column name. Returns the first TIMESTAMPTZ column or `'bucket'`
+- **`_detect_bucket_column(p_query_text)`** — auto-detects the time-bucket column name. Returns the first TIMESTAMPTZ or TIMESTAMP column, or `'bucket'` as a fallback
 
 ### Lakebase CDF sync
 
