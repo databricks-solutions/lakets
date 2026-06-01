@@ -9,6 +9,15 @@ CREATE TABLE public.ing_test (time TIMESTAMPTZ NOT NULL, host TEXT NOT NULL, cpu
 INSERT INTO ing_test VALUES (now(), 'setup', 0.0);
 SELECT lakets.create_chronotable('ing_test','time','1 day');
 
+-- The batch rows below are dated 2026-03-25, but create_chronotable only
+-- pre-creates partitions around the setup row's now(). LakeTS does not
+-- auto-create partitions on insert, so explicitly ensure partitions covering
+-- the fixed batch range (otherwise the inserts fail with "no partition found").
+SELECT lakets._ensure_partitions(
+    (SELECT id FROM lakets._chronotable_registry WHERE table_name = 'ing_test'),
+    p_range_start := '2026-03-24'::timestamptz,
+    p_range_end   := '2026-03-27'::timestamptz);
+
 -- T1: ingest_batch inserts rows
 DO $$ DECLARE v INT; v_before BIGINT; v_after BIGINT; BEGIN
     SELECT count(*) INTO v_before FROM ing_test;
