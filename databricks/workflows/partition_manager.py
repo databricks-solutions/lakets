@@ -5,7 +5,8 @@ Databricks Workflow job that pre-creates future partitions for all hypertables.
 Schedule: Every 6 hours (or customize per chunk_interval).
 
 Usage as Databricks Job:
-    spark.conf.get("lakets.instance_name") -> Lakebase instance name
+    Pass the Lakebase instance name as the first job parameter (sys.argv[1]),
+    or set the LAKETS_INSTANCE environment variable.
 """
 import logging
 import os
