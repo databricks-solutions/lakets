@@ -11,6 +11,14 @@ variables:
     description: "Unity Catalog schema for tiered data"
     default: "lakets"
 
+# The workflow source lives in ../workflows (a sibling of this bundle dir).
+# Sync it to the workspace so the spark_python_task files — and the shared
+# lakebase_utils.py they import — land together in one folder. No wheel is built;
+# the code runs directly and only external libraries are pip-installed (see libraries).
+sync:
+  paths:
+    - ../workflows
+
 resources:
   jobs:
     lakets_partition_manager:
@@ -21,11 +29,17 @@ resources:
         timezone_id: "UTC"
       tasks:
         - task_key: ensure_partitions
-          python_wheel_task:
-            package_name: lakets
-            entry_point: partition_manager
+          spark_python_task:
+            python_file: ../workflows/partition_manager.py
             parameters:
               - ${var.lakebase_instance}
+          # pip-installed on the cluster before the task runs. Defined once here,
+          # reused by every other task via the *job_libraries alias.
+          libraries: &job_libraries
+            - pypi:
+                package: "psycopg[binary]>=3.1,<4.0"
+            - pypi:
+                package: "databricks-sdk>=0.20.0,<1.0.0"
           existing_cluster_id: ${var.cluster_id}
 
     lakets_tiering:
@@ -36,11 +50,11 @@ resources:
         timezone_id: "UTC"
       tasks:
         - task_key: tier_cold_partitions
-          python_wheel_task:
-            package_name: lakets
-            entry_point: tiering_job
+          spark_python_task:
+            python_file: ../workflows/tiering_job.py
             parameters:
               - ${var.lakebase_instance}
+          libraries: *job_libraries
           existing_cluster_id: ${var.cluster_id}
 
     lakets_retention:
@@ -51,11 +65,11 @@ resources:
         timezone_id: "UTC"
       tasks:
         - task_key: enforce_retention
-          python_wheel_task:
-            package_name: lakets
-            entry_point: retention_job
+          spark_python_task:
+            python_file: ../workflows/retention_job.py
             parameters:
               - ${var.lakebase_instance}
+          libraries: *job_libraries
           existing_cluster_id: ${var.cluster_id}
 
     lakets_rollup_refresh:
@@ -66,11 +80,11 @@ resources:
         timezone_id: "UTC"
       tasks:
         - task_key: refresh_rollups
-          python_wheel_task:
-            package_name: lakets
-            entry_point: rollup_refresh
+          spark_python_task:
+            python_file: ../workflows/rollup_refresh.py
             parameters:
               - ${var.lakebase_instance}
+          libraries: *job_libraries
           existing_cluster_id: ${var.cluster_id}
 
     lakets_cold_rollup_refresh:
@@ -78,13 +92,13 @@ resources:
       description: "Re-aggregates cold-tier dirty buckets from Delta Lake"
       tasks:
         - task_key: cold_rollup_refresh
-          python_wheel_task:
-            package_name: lakets
-            entry_point: cold_rollup_refresh
+          spark_python_task:
+            python_file: ../workflows/cold_rollup_refresh.py
             parameters:
               - ${var.lakebase_instance}
               - ${var.delta_catalog}
               - ${var.delta_schema}
+          libraries: *job_libraries
           existing_cluster_id: ${var.cluster_id}
 
 targets:

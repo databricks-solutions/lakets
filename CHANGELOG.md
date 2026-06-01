@@ -21,6 +21,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version
   (`TRUNCATE`) refresh strategy; `create_rollup` no longer accepts a `p_refresh_mode` argument
   and `show_rollups()` no longer returns a `refresh_mode` column.
 - RollUps now sync to Unity Catalog via Lakebase CDF (`enable_sync`), replacing the custom export pipeline. Synced tables are mirrored by unpartitioned shadow tables in the new `lakets_cdf` schema.
+- Workflow jobs now depend on `psycopg[binary]` (psycopg 3) instead of `psycopg2-binary`. Imports moved from `psycopg2` / `psycopg2.sql` to `psycopg` / `psycopg.sql`, and connections set `autocommit=True` via the `connect()` argument.
+- Workflow jobs run as Databricks `spark_python_task` pointing directly at the `databricks/workflows/*.py` files instead of a `python_wheel_task` — no `lakets` wheel is built. The Asset Bundle installs only the external libraries (`psycopg[binary]`, `databricks-sdk`) on the cluster via a task `libraries` block and ships the workflow sources via `sync.paths`.
 
 ### Deprecated
 

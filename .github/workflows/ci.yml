@@ -61,13 +61,13 @@ jobs:
 
           # Check for f-string SQL (SELECT/INSERT/DELETE/UPDATE/DROP)
           if grep -rEn 'f"[^"]*\b(SELECT|INSERT|DELETE|UPDATE|DROP|ALTER)\b' databricks/ --include="*.py"; then
-            echo "::error::Found f-string SQL — use parameterized queries or psycopg2.sql module"
+            echo "::error::Found f-string SQL — use parameterized queries or psycopg.sql module"
             ERRORS=$((ERRORS + 1))
           fi
 
           # Check for %-format SQL: "SELECT ... %s ..." % (val,)
           if grep -rEn '"[^"]*(SELECT|INSERT INTO|DELETE FROM|UPDATE .* SET|DROP|ALTER)[^"]*"[[:space:]]*%' databricks/ --include="*.py"; then
-            echo "::error::Found %-format SQL — use parameterized queries or psycopg2.sql module"
+            echo "::error::Found %-format SQL — use parameterized queries or psycopg.sql module"
             ERRORS=$((ERRORS + 1))
           fi
 

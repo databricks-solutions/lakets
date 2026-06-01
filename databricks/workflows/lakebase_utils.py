@@ -5,7 +5,7 @@ Shared helper for all Databricks workflow jobs to connect to Lakebase.
 import uuid
 from contextlib import contextmanager
 
-import psycopg2
+import psycopg
 from databricks.sdk import WorkspaceClient
 
 
@@ -17,7 +17,7 @@ def get_lakebase_connection(instance_name: str, database: str = "databricks_post
         request_id=str(uuid.uuid4()),
     )
     instance = w.database.get_database_instance(name=instance_name)
-    conn = psycopg2.connect(
+    conn = psycopg.connect(
         host=instance.read_write_dns,
         port=5432,
         dbname=database,
@@ -26,8 +26,8 @@ def get_lakebase_connection(instance_name: str, database: str = "databricks_post
         sslmode="require",
         connect_timeout=30,
         options="-c statement_timeout=600000 -c lock_timeout=30000",
+        autocommit=True,
     )
-    conn.autocommit = True
     return conn
 
 
