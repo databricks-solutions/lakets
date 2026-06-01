@@ -57,11 +57,11 @@ def _resolve_cold_query(entry: dict, delta_table: str) -> str:
     return cold_query
 
 
-def run(instance_name: str, catalog: str = "main", schema: str = "lakets_sync"):
+def run(project_name: str, catalog: str = "main", schema: str = "lakets_sync"):
     """Re-aggregate cold-tier dirty buckets from Delta Lake."""
     w = WorkspaceClient()
 
-    with lakebase_cursor(instance_name) as cur:
+    with lakebase_cursor(project_name) as cur:
         cold_entries = fetch_all(cur, """
             SELECT r.id AS rollup_id, r.name, r.rollup_table, r.bucket_interval,
                    r.query_text,
@@ -205,7 +205,7 @@ def _get_warehouse_id(w: WorkspaceClient) -> str:
 
 
 if __name__ == "__main__":
-    instance = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_INSTANCE"]
+    project = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_PROJECT"]
     cat = sys.argv[2] if len(sys.argv) > 2 else "main"
     sch = sys.argv[3] if len(sys.argv) > 3 else "lakets_sync"
-    run(instance, cat, sch)
+    run(project, cat, sch)

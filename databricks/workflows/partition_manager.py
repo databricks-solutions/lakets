@@ -1,12 +1,12 @@
 """
 LakeTS Partition Manager Job
-Databricks Workflow job that pre-creates future partitions for all hypertables.
+Databricks Workflow job that pre-creates future partitions for all chronotables.
 
 Schedule: Every 6 hours (or customize per chunk_interval).
 
 Usage as Databricks Job:
-    Pass the Lakebase instance name as the first job parameter (sys.argv[1]),
-    or set the LAKETS_INSTANCE environment variable.
+    Pass the Lakebase project name as the first job parameter (sys.argv[1]),
+    or set the LAKETS_PROJECT environment variable.
 """
 import logging
 import os
@@ -29,19 +29,19 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("lakets.partition_manager")
 
 
-def run(instance_name: str):
-    """Pre-create future partitions for all registered hypertables."""
-    with lakebase_cursor(instance_name) as cur:
-        hypertables = fetch_all(cur, """
+def run(project_name: str):
+    """Pre-create future partitions for all registered chronotables."""
+    with lakebase_cursor(project_name) as cur:
+        chronotables = fetch_all(cur, """
             SELECT id, schema_name, table_name, chunk_interval
-            FROM lakets._hypertable_registry
+            FROM lakets._chronotable_registry
         """)
-        logger.info("Found %d hypertable(s)", len(hypertables))
+        logger.info("Found %d chronotable(s)", len(chronotables))
 
         total_created = 0
-        for ht in hypertables:
+        for ht in chronotables:
             cur.execute(
-                "SELECT lakets._ensure_partitions(p_hypertable_id := %s)",
+                "SELECT lakets._ensure_partitions(p_chronotable_id := %s)",
                 (ht["id"],),
             )
             created = cur.fetchone()[0]
@@ -57,5 +57,5 @@ def run(instance_name: str):
 
 
 if __name__ == "__main__":
-    instance = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_INSTANCE"]
-    run(instance)
+    project = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_PROJECT"]
+    run(project)

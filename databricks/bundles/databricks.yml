@@ -2,8 +2,8 @@ bundle:
   name: lakets
 
 variables:
-  lakebase_instance:
-    description: "Name of the Lakebase instance"
+  lakebase_project:
+    description: "Name of the Lakebase Autoscaling project (resolved to its primary read-write endpoint)"
   delta_catalog:
     description: "Unity Catalog catalog for tiered data"
     default: "main"
@@ -44,13 +44,13 @@ resources:
             client: "3"
             dependencies:
               - "psycopg[binary]>=3.1,<4.0"
-              - "databricks-sdk>=0.56.0,<1.0.0"
+              - "databricks-sdk>=0.81.0,<1.0.0"
       tasks:
         - task_key: ensure_partitions
           spark_python_task:
             python_file: ../workflows/partition_manager.py
             parameters:
-              - ${var.lakebase_instance}
+              - ${var.lakebase_project}
           environment_key: lakets_env
 
     lakets_tiering:
@@ -65,7 +65,7 @@ resources:
           spark_python_task:
             python_file: ../workflows/tiering_job.py
             parameters:
-              - ${var.lakebase_instance}
+              - ${var.lakebase_project}
           environment_key: lakets_env
 
     lakets_retention:
@@ -80,7 +80,7 @@ resources:
           spark_python_task:
             python_file: ../workflows/retention_job.py
             parameters:
-              - ${var.lakebase_instance}
+              - ${var.lakebase_project}
           environment_key: lakets_env
 
     lakets_rollup_refresh:
@@ -95,7 +95,7 @@ resources:
           spark_python_task:
             python_file: ../workflows/rollup_refresh.py
             parameters:
-              - ${var.lakebase_instance}
+              - ${var.lakebase_project}
           environment_key: lakets_env
 
     lakets_cold_rollup_refresh:
@@ -107,7 +107,7 @@ resources:
           spark_python_task:
             python_file: ../workflows/cold_rollup_refresh.py
             parameters:
-              - ${var.lakebase_instance}
+              - ${var.lakebase_project}
               - ${var.delta_catalog}
               - ${var.delta_schema}
           environment_key: lakets_env
