@@ -125,6 +125,18 @@ BEGIN
                   WHERE schema_name = p_schema_name AND table_name = p_table_name) INTO v_is_ct;
     SELECT EXISTS(SELECT 1 FROM lakets._rollup_registry WHERE name = p_table_name) INTO v_is_ru;
 
+    -- Preflight: LakeTS cannot enable Lakebase CDF itself -- it is a prerequisite
+    -- enabled on the lakets_cdf schema via Databricks. Without it, the shadow is
+    -- created but never streams to Unity Catalog, and tiering stays fail-closed
+    -- (nothing is ever evicted). Warn loudly rather than failing, so sync can be
+    -- wired before CDF is turned on.
+    IF to_regclass('wal2delta.tables') IS NULL THEN
+        RAISE WARNING 'Lakebase CDF (wal2delta) is not enabled on this database. The '
+            'shadow will be created but will not replicate to Unity Catalog, and '
+            'tiering will not evict any partitions. Enable CDF on the lakets_cdf '
+            'schema (see the LakeTS prerequisites) to activate sync.';
+    END IF;
+
     IF v_is_ct AND v_is_ru THEN
         RAISE EXCEPTION 'Ambiguous: % is both a ChronoTable and a RollUp', p_table_name;
     ELSIF v_is_ct THEN

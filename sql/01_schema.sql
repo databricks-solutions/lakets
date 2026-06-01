@@ -50,6 +50,10 @@ CREATE TABLE IF NOT EXISTS lakets._chunk_metadata (
     size_bytes BIGINT,
     compressed_at TIMESTAMPTZ,
     tiered_at TIMESTAMPTZ,
+    -- Highest WAL position written to this chunk, stamped by the tiering
+    -- write-tracking trigger. The tiering durability gate drops a chunk only
+    -- once CDF's committed_lsn for the shadow has flushed past this mark.
+    last_write_lsn PG_LSN,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT valid_status CHECK (status IN ('active', 'tiered', 'dropped'))
 );

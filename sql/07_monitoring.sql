@@ -37,35 +37,25 @@ BEGIN
     LEFT JOIN pg_stat_user_tables s
         ON s.schemaname = hr.schema_name AND s.relname = hr.table_name;
 
-    -- Tiering: eligible-but-not-yet-dropped chunks per table.
+    -- Tiering metrics, sourced from show_tiering_status so the gate logic lives
+    -- in exactly one place (per-chunk committed_lsn >= last_write_lsn).
+    -- pending = aged-out chunks awaiting eviction; caught_up = CDF has flushed
+    -- past every pending chunk (the durability gate currently passes).
     RETURN QUERY
-    SELECT 'lakets_tiering_pending_chunks'::TEXT,
-           count(*) FILTER (WHERE cm.status = 'active'
-                            AND cm.range_end <= now() - (pr.config->>'after')::INTERVAL)::DOUBLE PRECISION,
-           jsonb_build_object('table', hr.schema_name || '.' || hr.table_name)
-    FROM lakets._chronotable_registry hr
-    JOIN lakets._policy_registry pr ON hr.id = pr.chronotable_id AND pr.policy_type = 'tiering'
-    LEFT JOIN lakets._chunk_metadata cm ON cm.chronotable_id = hr.id
-    GROUP BY hr.schema_name, hr.table_name;
+    SELECT 'lakets_tiering_pending_chunks'::TEXT, sts.pending_chunks::DOUBLE PRECISION,
+           jsonb_build_object('table', sts.schema_name || '.' || sts.table_name)
+    FROM lakets.show_tiering_status() sts;
 
-    -- Tiering: chunks tiered to date per table.
     RETURN QUERY
-    SELECT 'lakets_tiering_tiered_chunks_total'::TEXT,
-           count(*) FILTER (WHERE cm.status = 'tiered')::DOUBLE PRECISION,
-           jsonb_build_object('table', hr.schema_name || '.' || hr.table_name)
-    FROM lakets._chronotable_registry hr
-    JOIN lakets._policy_registry pr ON hr.id = pr.chronotable_id AND pr.policy_type = 'tiering'
-    LEFT JOIN lakets._chunk_metadata cm ON cm.chronotable_id = hr.id
-    GROUP BY hr.schema_name, hr.table_name;
+    SELECT 'lakets_tiering_tiered_chunks_total'::TEXT, sts.tiered_chunks::DOUBLE PRECISION,
+           jsonb_build_object('table', sts.schema_name || '.' || sts.table_name)
+    FROM lakets.show_tiering_status() sts;
 
-    -- Tiering: CDF caught-up flag per table (1 = durability gate currently passes).
     RETURN QUERY
     SELECT 'lakets_tiering_caught_up'::TEXT,
-           (CASE WHEN lakets._cdf_committed_lsn(hr.shadow_table_name) >= pg_current_wal_lsn()
-                 THEN 1 ELSE 0 END)::DOUBLE PRECISION,
-           jsonb_build_object('table', hr.schema_name || '.' || hr.table_name)
-    FROM lakets._chronotable_registry hr
-    JOIN lakets._policy_registry pr ON hr.id = pr.chronotable_id AND pr.policy_type = 'tiering';
+           (CASE WHEN sts.caught_up THEN 1 ELSE 0 END)::DOUBLE PRECISION,
+           jsonb_build_object('table', sts.schema_name || '.' || sts.table_name)
+    FROM lakets.show_tiering_status() sts;
 
     -- RollUp watermark lag (seconds between now and watermark per RollUp)
     RETURN QUERY

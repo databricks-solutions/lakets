@@ -101,4 +101,39 @@ BEGIN
     RAISE NOTICE 'TEST 7 PASSED: show_tiering_status reports gate state';
 END $$;
 
+-- TEST 8: the write-tracking trigger stamps last_write_lsn on the chunk that
+-- received rows and leaves other chunks untouched (no CDF needed).
+DO $$
+DECLARE
+    v_id INT;
+    v_lsn_hot PG_LSN;
+    v_lsn_seeded PG_LSN;
+BEGIN
+    SELECT id INTO v_id FROM lakets._chronotable_registry WHERE table_name = 'tier_test';
+
+    -- Ensure a partition exists for "now" so the insert has somewhere to route.
+    PERFORM lakets._ensure_partitions(v_id, p_range_start := now(), p_range_end := now());
+
+    -- Pin the seeded old chunk's watermark to a known value; it must NOT move.
+    UPDATE lakets._chunk_metadata SET last_write_lsn = '0/1'::pg_lsn
+    WHERE chunk_name = 'tier_test_oldchunk';
+
+    INSERT INTO public.tier_test (time, v) VALUES (now(), 1.0);
+
+    -- The hot chunk that received the row is stamped with a real WAL position.
+    SELECT max(last_write_lsn) INTO v_lsn_hot
+    FROM lakets._chunk_metadata
+    WHERE chronotable_id = v_id AND chunk_name <> 'tier_test_oldchunk';
+    ASSERT v_lsn_hot IS NOT NULL AND v_lsn_hot <> '0/1'::pg_lsn,
+        'TEST 8 FAILED: hot chunk was not stamped by the write-tracking trigger';
+
+    -- The unrelated old chunk is untouched.
+    SELECT last_write_lsn INTO v_lsn_seeded
+    FROM lakets._chunk_metadata WHERE chunk_name = 'tier_test_oldchunk';
+    ASSERT v_lsn_seeded = '0/1'::pg_lsn,
+        'TEST 8 FAILED: a hot-chunk write bumped an unrelated cold chunk watermark';
+
+    RAISE NOTICE 'TEST 8 PASSED: write-tracking stamps only the written chunk';
+END $$;
+
 SELECT 'ALL TIERING TESTS PASSED' AS result;
