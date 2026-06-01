@@ -6,22 +6,20 @@ name: CodeQL
 #
 # SQL is not a supported CodeQL language; the SQL security lint in ci.yml
 # covers the dynamic-SQL patterns we care about.
+#
+# ⚠ Currently MANUAL-ONLY: code scanning SARIF upload requires GitHub
+# Advanced Security (GHAS) on private repos. This repo doesn't have GHAS
+# enabled, so the upload step 403s ("Resource not accessible by
+# integration") and the workflow fails on every scheduled run. Until
+# GHAS is enabled — or the repo is made public — `pull_request`, `push`,
+# and `schedule` triggers are intentionally removed.
+#
+# To run it ad-hoc: Actions → CodeQL → "Run workflow".
+# To re-enable scheduled scans: restore the triggers below the
+# workflow_dispatch entry.
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'databricks/**'
-      - 'website/**'
-      - '.github/workflows/codeql.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'databricks/**'
-      - 'website/**'
-      - '.github/workflows/codeql.yml'
-  schedule:
-    - cron: '0 6 * * 1'  # weekly Monday 06:00 UTC
+  workflow_dispatch:
 
 permissions:
   contents: read

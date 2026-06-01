@@ -20,6 +20,41 @@ updates:
     commit-message:
       prefix: chore
       include: scope
+    ignore:
+      # pytest is declared in requirements-dev.txt, but Dependabot's
+      # security-advisory updater for the pip ecosystem only knows about
+      # requirements.txt and fails with `dependency_file_not_supported`.
+      # The vuln alert still surfaces in the Security tab; we just skip the
+      # auto-PR. Remove this once Dependabot supports multi-requirements
+      # security updates for pip.
+      - dependency-name: pytest
+
+  # Docusaurus site at website/. Direct deps update normally; indirect
+  # deps (uuid, serialize-javascript, etc.) trip the security updater
+  # because Dependabot can't pin transitive deps via package-lock.json
+  # alone. Vulns still surface in Security; auto-PR is suppressed.
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - npm
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore
+      include: scope
+    ignore:
+      - dependency-name: uuid
+      - dependency-name: serialize-javascript
 
   - package-ecosystem: github-actions
     directory: /
