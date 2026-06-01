@@ -7,6 +7,34 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
+-- _cdf_committed_lsn: returns the CDF-flushed LSN for a shadow table, but
+-- ONLY if it is actively STREAMING in wal2delta.tables. Returns NULL (fail
+-- closed) if the wal2delta subsystem is absent, the shadow does not exist,
+-- or the table is not STREAMING (e.g. SKIPPED for missing REPLICA IDENTITY).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION lakets._cdf_committed_lsn(p_shadow_name TEXT)
+RETURNS PG_LSN
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_oid OID;
+    v_lsn PG_LSN;
+BEGIN
+    IF to_regclass('wal2delta.tables') IS NULL THEN
+        RETURN NULL;
+    END IF;
+    v_oid := to_regclass('lakets_cdf.' || quote_ident(p_shadow_name))::oid;
+    IF v_oid IS NULL THEN
+        RETURN NULL;
+    END IF;
+    SELECT committed_lsn INTO v_lsn
+    FROM wal2delta.tables
+    WHERE table_oid = v_oid AND status = 'STREAMING';
+    RETURN v_lsn;  -- NULL if no STREAMING row
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- add_compression_policy: Registers a compression/tiering policy.
 -- After compress_after interval, the Databricks compression job will:
 --   1. Ensure data is synced to Delta via Lakehouse Sync
