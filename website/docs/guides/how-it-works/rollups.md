@@ -94,14 +94,46 @@ On the next `refresh_rollup()` call, all hot-tier invalidation entries older tha
 
 ## Hot-tier vs cold-tier refresh
 
-RollUp Tables persist in Lakebase permanently (aggregates are tiny compared to raw data). When raw data tiers to a Unity Catalog Managed Table:
+RollUp Tables persist in Lakebase permanently (aggregates are tiny compared to raw data). The raw **source** data, however, does not: the [tiering job](../../reference/workflow-jobs.md) evicts cold partitions from Lakebase once Lakebase CDF has flushed them to the Unity Catalog Managed Table. So at any moment a RollUp's source buckets live in one of two places:
 
-| Tier | Data Location | Refresh Engine | How It Works |
+| Tier | Source data location | Refresh engine | How it works |
 |------|--------------|----------------|--------------|
 | **Hot** | Lakebase (Postgres) | `refresh_rollup()` SQL function | Watermark + invalidation log, runs every 15 min |
 | **Cold** | Unity Catalog Managed Table | `cold_rollup_refresh.py` Databricks job | Reads cold invalidation entries, re-aggregates via Databricks SQL, writes back to Lakebase |
 
-Cold-tier invalidation is triggered manually via `invalidate_rollup_range()` with `tier = 'cold'` — typically after ETL corrections or bulk re-imports into the Unity Catalog Managed Table.
+A bucket's tier is **auto-detected** from the covering chunk's status (`active` → hot, `tiered` → cold; see [Tier auto-routing](#tier-auto-routing--hot-vs-cold-detected-automatically)). The hot refresh processes only `tier = 'hot'` entries and re-aggregates from Lakebase; it deliberately **skips** cold entries, because the source rows are no longer in Postgres — they exist only in Delta. The cold job is the *only* thing that can refresh those buckets, by re-aggregating from the Delta copy via a SQL warehouse and writing the result back into the Lakebase RollUp Table.
+
+### When you need cold-tier refresh
+
+You need `cold_rollup_refresh` only when **data that has already been tiered to cold changes**, and you want the RollUp to reflect that change:
+
+1. **Late-arriving data** — a record for an old time window whose chunk was already tiered (e.g. a delayed device or event lands days later).
+2. **Historical corrections / restatements** — an ETL fix, reprocessing, or backfill rewrites a past day in the Unity Catalog Managed Table.
+3. **Manual backfill** — you explicitly mark an old, now-cold window dirty after fixing upstream data.
+
+In each case the invalidation is logged with `tier = 'cold'` (auto-detected, because the covering chunk is `tiered`), the 15-minute hot refresh skips it, and it stays unprocessed until the cold job runs.
+
+### When you don't
+
+If your time series is effectively **append-only / immutable once tiered** — the common case for metrics, logs, and observability data — cold buckets are never invalidated. The job simply logs `No cold-tier invalidations pending` and exits. You can leave it deployed (it is cheap and idempotent) or skip scheduling it entirely. The tradeoff if you remove it: once data tiers to cold, its RollUps are **frozen** — later corrections to historical data will not be reflected.
+
+### How to use it
+
+The job is **on-demand** — the bundle ships it without a schedule. Run it after the cold source data changes:
+
+```sql
+-- 1. Mark the affected (already-tiered) window dirty. The tier is auto-detected
+--    from chunk status; pass p_tier => 'cold' to force it.
+SELECT lakets.invalidate_rollup_range('metrics_hourly',
+    '2026-01-01'::timestamptz, '2026-01-02'::timestamptz);
+```
+
+```bash
+# 2. Run the cold re-aggregation job (Databricks Asset Bundle).
+databricks bundle run lakets_cold_rollup_refresh -t prod
+```
+
+The job reads the pending `tier = 'cold'` entries, re-aggregates each dirty bucket from `<catalog>.<schema>.<source_table>` in Unity Catalog (auto-starting a serverless SQL warehouse if none is running), `DELETE`s the stale rows and `INSERT`s the recomputed rows into the Lakebase RollUp Table, then clears the processed cold entries. It is idempotent — re-running with nothing pending is a no-op. For RollUps whose hot `query_text` cannot be rewritten to the Delta table by simple name substitution (multi-table joins, etc.), set an explicit `cold_query_text` on the RollUp.
 
 ---
 
