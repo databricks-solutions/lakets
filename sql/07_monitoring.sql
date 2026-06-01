@@ -37,12 +37,25 @@ BEGIN
     LEFT JOIN pg_stat_user_tables s
         ON s.schemaname = hr.schema_name AND s.relname = hr.table_name;
 
-    -- Compression policy status
+    -- Tiering metrics, sourced from show_tiering_status so the gate logic lives
+    -- in exactly one place (per-chunk committed_lsn >= last_write_lsn).
+    -- pending = aged-out chunks awaiting eviction; caught_up = CDF has flushed
+    -- past every pending chunk (the durability gate currently passes).
     RETURN QUERY
-    SELECT 'lakets_compression_enabled'::TEXT,
-           (CASE WHEN hr.compression_enabled THEN 1 ELSE 0 END)::DOUBLE PRECISION,
-           jsonb_build_object('table', hr.schema_name || '.' || hr.table_name)
-    FROM lakets._chronotable_registry hr;
+    SELECT 'lakets_tiering_pending_chunks'::TEXT, sts.pending_chunks::DOUBLE PRECISION,
+           jsonb_build_object('table', sts.schema_name || '.' || sts.table_name)
+    FROM lakets.show_tiering_status() sts;
+
+    RETURN QUERY
+    SELECT 'lakets_tiering_tiered_chunks_total'::TEXT, sts.tiered_chunks::DOUBLE PRECISION,
+           jsonb_build_object('table', sts.schema_name || '.' || sts.table_name)
+    FROM lakets.show_tiering_status() sts;
+
+    RETURN QUERY
+    SELECT 'lakets_tiering_caught_up'::TEXT,
+           (CASE WHEN sts.caught_up THEN 1 ELSE 0 END)::DOUBLE PRECISION,
+           jsonb_build_object('table', sts.schema_name || '.' || sts.table_name)
+    FROM lakets.show_tiering_status() sts;
 
     -- RollUp watermark lag (seconds between now and watermark per RollUp)
     RETURN QUERY
@@ -100,7 +113,6 @@ RETURNS TABLE (
     hypertable TEXT,
     total_chunks BIGINT,
     active_chunks BIGINT,
-    compressed_chunks BIGINT,
     tiered_chunks BIGINT,
     dropped_chunks BIGINT,
     oldest_active TIMESTAMPTZ,
@@ -114,7 +126,6 @@ BEGIN
         hr.schema_name || '.' || hr.table_name,
         count(*)::BIGINT,
         count(*) FILTER (WHERE cm.status = 'active')::BIGINT,
-        count(*) FILTER (WHERE cm.status = 'compressed')::BIGINT,
         count(*) FILTER (WHERE cm.status = 'tiered')::BIGINT,
         count(*) FILTER (WHERE cm.status = 'dropped')::BIGINT,
         min(cm.range_start) FILTER (WHERE cm.status = 'active'),

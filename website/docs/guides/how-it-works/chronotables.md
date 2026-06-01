@@ -60,8 +60,8 @@ LakeTS tracks everything in two tables:
 ```sql
 -- Which tables are ChronoTables?
 SELECT * FROM lakets._chronotable_registry;
--- id | schema | table   | time_column | chunk_interval | compression_enabled | sync_enabled
--- 1  | public | metrics | time        | 1 day          | false               | false
+-- id | schema | table   | time_column | chunk_interval | tiering_enabled | sync_enabled
+-- 1  | public | metrics | time        | 1 day          | false           | false
 
 -- What chunks exist?
 SELECT * FROM lakets._chunk_metadata;

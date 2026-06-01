@@ -28,20 +28,19 @@ resources:
               - ${var.lakebase_instance}
           existing_cluster_id: ${var.cluster_id}
 
-    lakets_compression:
-      name: "LakeTS - Compression & Tiering"
-      description: "Tiers old chunks from Lakebase to Delta Lake"
+    lakets_tiering:
+      name: "LakeTS - Tiering"
+      description: "Drops cold ChronoTable partitions once CDF has flushed them to Unity Catalog"
       schedule:
         quartz_cron_expression: "0 0 2 * * ?"  # Daily at 2 AM UTC
         timezone_id: "UTC"
       tasks:
-        - task_key: compress_and_tier
+        - task_key: tier_cold_partitions
           python_wheel_task:
             package_name: lakets
-            entry_point: compression_job
+            entry_point: tiering_job
             parameters:
               - ${var.lakebase_instance}
-              - ${var.delta_catalog}
           existing_cluster_id: ${var.cluster_id}
 
     lakets_retention:

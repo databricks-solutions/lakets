@@ -89,6 +89,10 @@ In a multi-metric ChronoTable, a column that identifies a series (`host`, `regio
 
 Two-phase lifecycle policy: tier to the Unity Catalog Managed Table after age N, drop entirely after age M. Configured with `add_tiered_retention_policy()`.
 
+## Tiering
+
+Evicting cold chunks out of Lakebase to free hot-tier storage. The data already lives in the Unity Catalog Managed Table via Lakebase CDF, so `tier_chunk()` simply drops the old partition — but only once a CDF **durability gate** confirms every write to that chunk has been flushed to UC (the shadow is `STREAMING` and CDF's `committed_lsn` has reached the chunk's `last_write_lsn`). Configured with `add_tiering_policy()` and driven daily by the Databricks Tiering Job. See [How Tiering & Retention Works](./guides/how-it-works/tiering-and-retention.md).
+
 ## Unity Catalog Managed Table
 
 Databricks's governed table format that abstracts the underlying storage (Delta or Iceberg). LakeTS uses it as the cold tier — `lakets.enable_sync()` targets a Unity Catalog Managed Table via Lakebase CDF.

@@ -310,7 +310,7 @@ code {
 .menu__link[href*="/guides/how-it-works/chronotables"]::before { content: "layers"; }
 .menu__link[href*="/guides/how-it-works/time-series-functions"]::before { content: "function"; }
 .menu__link[href*="/guides/how-it-works/rollups"]::before { content: "account_tree"; }
-.menu__link[href*="/guides/how-it-works/compression-and-retention"]::before { content: "archive"; }
+.menu__link[href*="/guides/how-it-works/tiering-and-retention"]::before { content: "archive"; }
 .menu__link[href*="/guides/how-it-works/lakebase-cdf-internals"]::before { content: "hub"; }
 .menu__link[href$="/how-to/"]::before,
 .menu__link[href$="/how-to"]::before { content: "explore"; }

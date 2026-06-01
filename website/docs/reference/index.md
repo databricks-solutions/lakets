@@ -24,7 +24,7 @@ Every LakeTS function, custom aggregate, trigger, and metadata table — grouped
 - **[Downsampling pipelines](./downsampling.md)** — multi-resolution pipelines executed by Databricks Jobs
 
 ### Lifecycle
-- **[Lifecycle policies](./lifecycle.md)** — compression, tiering, retention
+- **[Lifecycle policies](./lifecycle.md)** — tiering, retention
 - **[Lakebase CDF](./lakebase-cdf.md)** — shadow-table sync to Unity Catalog (ChronoTables and RollUps)
 
 ### Operations
@@ -41,7 +41,7 @@ Every LakeTS function, custom aggregate, trigger, and metadata table — grouped
 | ChronoTables (incl. multi-metric) | 9 | — | — |
 | Time-series analytics | 7 | 2 | — |
 | RollUps (engine + optimization) | 26 | — | 4 |
-| Lifecycle (compression + retention) | 11 | — | — |
+| Lifecycle (tiering + retention) | 11 | — | — |
 | Lakebase CDF | 3 | — | 1 |
 | Last Value Cache | 5 | — | 1 |
 | Downsampling | 4 | — | — |

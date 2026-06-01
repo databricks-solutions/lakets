@@ -55,30 +55,32 @@ class TestColdRollupRefreshPatterns:
             "cold_rollup_refresh.py should track failures"
 
 
-class TestCompressionJobPatterns:
-    """Verify compression_job.py uses safe SQL patterns."""
+class TestTieringJobPatterns:
+    """Verify tiering_job.py uses safe SQL patterns and delegates the drop to SQL."""
 
-    SOURCE_PATH = "databricks/workflows/compression_job.py"
+    SOURCE_PATH = "databricks/workflows/tiering_job.py"
 
-    def test_drop_table_uses_identifier(self):
-        """T9: DROP TABLE uses sql.Identifier, not %-formatting."""
+    def test_delegates_drop_to_tier_chunk(self):
+        """T9: The partition drop is delegated to lakets.tier_chunk (no raw DROP in Python)."""
         source = _read_source(self.SOURCE_PATH)
-        assert '"DROP TABLE IF EXISTS %s.%s" %' not in source, \
-            "compression_job.py still uses %-format for DROP TABLE"
+        assert "lakets.tier_chunk" in source, \
+            "tiering_job.py should call lakets.tier_chunk to perform the gated drop"
+        assert "DROP TABLE" not in source, \
+            "tiering_job.py should not issue DROP TABLE directly; tier_chunk owns the drop"
 
     def test_uses_chronotable_registry(self):
         """T10: References _chronotable_registry, not _hypertable_registry."""
         source = _read_source(self.SOURCE_PATH)
         assert "_hypertable_registry" not in source, \
-            "compression_job.py still references legacy _hypertable_registry"
+            "tiering_job.py still references legacy _hypertable_registry"
         assert "_chronotable_registry" in source, \
-            "compression_job.py should reference _chronotable_registry"
+            "tiering_job.py should reference _chronotable_registry"
 
-    def test_no_dead_jdbc_url(self):
-        """T11: Dead jdbc_url code has been removed."""
+    def test_no_spark(self):
+        """T11: Tiering is pure Lakebase SQL — no Spark dependency."""
         source = _read_source(self.SOURCE_PATH)
-        assert "jdbc_url" not in source, \
-            "compression_job.py still has dead jdbc_url code"
+        assert "pyspark" not in source and "SparkSession" not in source, \
+            "tiering_job.py should be Spark-free"
 
 
 class TestLakebaseUtilsPatterns:

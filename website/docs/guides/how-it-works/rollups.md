@@ -237,7 +237,6 @@ The default now resolves the tier from the chunk's status:
 | Chunk status | Resolved tier | Meaning |
 |---|---|---|
 | `active` | hot | Data in Lakebase |
-| `compressed` | hot | Data in Lakebase (compressed) |
 | `tiered` | cold | Data in Unity Catalog Managed Table |
 
 You can still pass `p_tier` explicitly when you need to override.

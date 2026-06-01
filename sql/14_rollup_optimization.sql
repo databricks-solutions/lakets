@@ -508,7 +508,7 @@ RETURNS TEXT
 LANGUAGE sql STABLE
 AS $$
     SELECT CASE
-        WHEN cm.status IN ('active', 'compressed') THEN 'hot'
+        WHEN cm.status = 'active' THEN 'hot'
         WHEN cm.status = 'tiered' THEN 'cold'
         ELSE 'hot'
     END

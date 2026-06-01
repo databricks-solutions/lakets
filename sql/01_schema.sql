@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS lakets._chronotable_registry (
     chunk_interval INTERVAL NOT NULL DEFAULT '7 days',
     space_column TEXT,
     space_partitions INT DEFAULT 1,
-    compression_enabled BOOLEAN DEFAULT FALSE,
+    tiering_enabled BOOLEAN DEFAULT FALSE,
     retention_interval INTERVAL,
     shadow_table_name TEXT,
     sync_enabled BOOLEAN DEFAULT FALSE,
@@ -48,10 +48,13 @@ CREATE TABLE IF NOT EXISTS lakets._chunk_metadata (
     status TEXT NOT NULL DEFAULT 'active',
     row_count BIGINT,
     size_bytes BIGINT,
-    compressed_at TIMESTAMPTZ,
     tiered_at TIMESTAMPTZ,
+    -- Highest WAL position written to this chunk, stamped by the tiering
+    -- write-tracking trigger. The tiering durability gate drops a chunk only
+    -- once CDF's committed_lsn for the shadow has flushed past this mark.
+    last_write_lsn PG_LSN,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT valid_status CHECK (status IN ('active', 'compressed', 'tiered', 'dropped'))
+    CONSTRAINT valid_status CHECK (status IN ('active', 'tiered', 'dropped'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_chunk_metadata_hypertable
@@ -61,7 +64,7 @@ CREATE INDEX IF NOT EXISTS idx_chunk_metadata_range
     ON lakets._chunk_metadata(range_start, range_end);
 
 -- ---------------------------------------------------------------------------
--- Policy Registry: tracks compression, retention, and tiering policies
+-- Policy Registry: tracks tiering, retention, and tiered-retention policies
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS lakets._policy_registry (
     id SERIAL PRIMARY KEY,
@@ -71,7 +74,7 @@ CREATE TABLE IF NOT EXISTS lakets._policy_registry (
     enabled BOOLEAN DEFAULT TRUE,
     last_run_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT valid_policy_type CHECK (policy_type IN ('compression', 'retention', 'tiered_retention'))
+    CONSTRAINT valid_policy_type CHECK (policy_type IN ('tiering', 'retention', 'tiered_retention'))
 );
 
 -- ---------------------------------------------------------------------------
@@ -153,7 +156,7 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_chunk_metadata_chunk_name
     ON lakets._chunk_metadata(chunk_name);
 
--- FK index on _policy_registry (scanned by compression/retention jobs)
+-- FK index on _policy_registry (scanned by tiering/retention jobs)
 CREATE INDEX IF NOT EXISTS idx_policy_registry_ct_type
     ON lakets._policy_registry(chronotable_id, policy_type) WHERE enabled = TRUE;
 

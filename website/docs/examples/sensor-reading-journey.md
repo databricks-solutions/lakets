@@ -2,7 +2,7 @@
 title: Life of a sensor reading
 sidebar_label: Sensor reading journey
 sidebar_position: 1
-description: Follow a single sensor reading through every stage of the LakeTS lifecycle — ingestion, RollUps, compression, tiering, retention.
+description: Follow a single sensor reading through every stage of the LakeTS lifecycle — ingestion, RollUps, tiering, retention.
 ---
 
 # Life of a sensor reading
@@ -30,17 +30,17 @@ Behind the scenes:
 - The hourly RollUp includes the reading immediately
 - `SELECT * FROM _rollup_rt_metrics_hourly` shows it in real time
 
-## Day 7 — compression job runs
+## Day 7 — tiering job runs
 
-- The chunk is now 7 days old; `_get_chunks_to_compress()` returns it
-- Chunk status flips from `active` → `compressed`
-- The partition is dropped from Lakebase; the data is already in the Unity Catalog Managed Table
+- The chunk is now 7 days old; `_get_chunks_to_tier()` returns it
+- `tier_chunk()` checks the durability gate — CDF has flushed the chunk's writes (`committed_lsn >= last_write_lsn`) into the Unity Catalog Managed Table
+- The gate passes, so the partition is dropped from Lakebase and the chunk status flips from `active` → `tiered`
 
 ## Day 7–90 — warm in Unity Catalog
 
 - Queryable via Lakehouse Federation (100 ms – 1 s)
 - The hourly RollUp Table still has the aggregation — unaffected by tiering
-- The UC Managed Table is Z-ordered for fast time-range scans
+- The data lives in the UC Managed Table, written there continuously by Lakebase CDF
 
 ## Day 90 — retention job runs
 
@@ -63,7 +63,7 @@ gantt
     Active in partition           :active, 2026-03-25, 7d
 
     section Warm (Unity Catalog Managed Table)
-    Compressed/Tiered             :2026-04-01, 83d
+    Tiered                        :2026-04-01, 83d
 
     section Dropped
     Vacuumed                      :milestone, 2026-06-23, 0d
