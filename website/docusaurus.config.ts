@@ -7,14 +7,27 @@ const config: Config = {
   tagline: "Time Series Toolkit for Databricks Lakebase",
   favicon: "img/favicon.ico",
 
-  url: "https://databricks-solutions.github.io",
-  baseUrl: "/lakets/",
+  // The repo is PRIVATE, so GitHub Pages serves the site at a random
+  // `*.pages.github.io` root domain (not at databricks-solutions.github.io/lakets/).
+  // baseUrl must therefore be "/", or every asset 404s and Docusaurus shows
+  // the "site did not load properly / wrong baseUrl" banner.
+  //
+  // url/baseUrl can be overridden at build time via env vars so a future
+  // public flip is a one-line workflow change, not a code edit. To serve at
+  // the public project-pages URL instead, set:
+  //   DOCS_URL=https://databricks-solutions.github.io  DOCS_BASE_URL=/lakets/
+  url: process.env.DOCS_URL || "https://refactored-chainsaw-8wmy65y.pages.github.io",
+  baseUrl: process.env.DOCS_BASE_URL || "/",
 
   organizationName: "databricks-solutions",
   projectName: "lakets",
   trailingSlash: false,
 
-  onBrokenLinks: "warn",
+  // Fail the build on broken internal links/anchors so doc drift can't ship
+  // silently (the deploy-docs CI job will go red instead of publishing a
+  // site with dead links).
+  onBrokenLinks: "throw",
+  onBrokenAnchors: "throw",
   onBrokenMarkdownLinks: "warn",
 
   // Enable Mermaid for diagram rendering inside markdown ```mermaid blocks.
