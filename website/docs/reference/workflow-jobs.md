@@ -17,9 +17,23 @@ All jobs run on **serverless compute** — there is no cluster to provision. Eac
 | **Tiering** | Daily 2 AM | `_get_chunks_to_tier()` → `tier_chunk()` per candidate — drops cold partitions whose data CDF has flushed to UC (pure Lakebase SQL, no Spark) |
 | **Retention** | Daily 3 AM | `execute_retention()` — drops expired chunks in Lakebase and the UC Managed Table |
 | **RollUp Refresh** | Every 15 min | `refresh_rollup()` — incremental hot-tier refresh |
-| **Cold RollUp Refresh** | On-demand (no fixed schedule) | `refresh_rollup()` with cold-tier dirty buckets, run after cold-tier ETL corrections |
+| **Cold RollUp Refresh** | On-demand (no fixed schedule) | Re-aggregates already-tiered (cold) source data from Unity Catalog via a SQL warehouse and writes the corrected aggregates back to the Lakebase RollUp Table |
 
 Each job is idempotent and stateless — re-running it cannot corrupt data. Lakebase remains the source of truth for state (registries, watermarks, invalidation log); the jobs read that state and execute against it.
+
+### When to run Cold RollUp Refresh
+
+The other four jobs run on a schedule; **Cold RollUp Refresh is on-demand** because it only has work when historical data that has *already been tiered out of Lakebase* changes. Run it after:
+
+- **late-arriving data** for a time window whose chunk was already tiered,
+- an **ETL correction / restatement / backfill** that rewrites a past period in the Unity Catalog Managed Table, or
+- a manual `lakets.invalidate_rollup_range(...)` over an old, now-cold window.
+
+The 15-minute hot **RollUp Refresh** skips cold buckets (their source rows are no longer in Postgres), so this job is the only thing that propagates such corrections into RollUps. If your data is append-only / immutable once tiered (typical for metrics and logs), it has nothing to do and can be left unscheduled. See [Hot-tier vs cold-tier refresh](../guides/how-it-works/rollups.md#hot-tier-vs-cold-tier-refresh) for the full mechanics and a worked example.
+
+```bash
+databricks bundle run lakets_cold_rollup_refresh -t prod
+```
 
 ## Authentication & permissions
 

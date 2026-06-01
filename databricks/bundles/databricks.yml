@@ -14,7 +14,9 @@ variables:
     description: >-
       Application ID of the service principal the jobs run as. It must hold a
       Lakebase Postgres role with the privileges each job needs (see
-      docs/reference/workflow-jobs). Required for the prod target.
+      docs/reference/workflow-jobs). Required for the prod target; leave empty
+      for dev (runs as the deploying user).
+    default: ""
 
 # The workflow source lives in ../workflows (a sibling of this bundle dir).
 # Sync it to the workspace so the spark_python_task files — and the shared

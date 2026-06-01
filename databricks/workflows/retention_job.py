@@ -13,8 +13,15 @@ import os
 import sys
 
 # Ensure sibling modules (lakebase_utils) are importable when run as a
-# spark_python_task — the entry file's directory may not be on sys.path.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# spark_python_task. On serverless the file runs via exec() with no __file__
+# defined, so fall back to the working directory (Databricks sets it to the
+# file's workspace folder).
+try:
+    _here = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    _here = os.getcwd()
+if _here not in sys.path:
+    sys.path.insert(0, _here)
 
 from lakebase_utils import fetch_all, lakebase_cursor
 
