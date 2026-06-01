@@ -1,0 +1,193 @@
+{
+  "uid": "lakets-cold-tier",
+  "title": "LakeTS — Cold Tier (Delta SCD Type 2)",
+  "tags": ["lakets", "databricks", "delta"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "catalog",
+        "type": "textbox",
+        "label": "Catalog",
+        "current": { "text": "taran-interop", "value": "taran-interop" },
+        "query": "taran-interop"
+      },
+      {
+        "name": "schema",
+        "type": "textbox",
+        "label": "Schema",
+        "current": { "text": "lakets", "value": "lakets" },
+        "query": "lakets"
+      },
+      {
+        "name": "table",
+        "type": "textbox",
+        "label": "Delta table (Sync target)",
+        "current": { "text": "lb__shadow_stock_ticks_history", "value": "lb__shadow_stock_ticks_history" },
+        "query": "lb__shadow_stock_ticks_history"
+      }
+    ]
+  },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 100,
+      "type": "text",
+      "title": "",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 3 },
+      "options": {
+        "mode": "markdown",
+        "content": "# Cold Tier — Lakehouse Sync SCD Type 2\n**Target**: `${catalog}.${schema}.${table}` · Every source change is appended with a `_pg_change_type` marker. Deletes never remove data — only add a tombstone row. Historical data is preserved forever."
+      }
+    },
+    {
+      "id": 101,
+      "type": "stat",
+      "title": "Total SCD Type 2 events",
+      "gridPos": { "x": 0, "y": 3, "w": 6, "h": 4 },
+      "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "area", "textMode": "auto"
+      },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] }, "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS total FROM `${catalog}`.`${schema}`.`${table}`"
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "type": "stat",
+      "title": "Insert events",
+      "gridPos": { "x": 6, "y": 3, "w": 6, "h": 4 },
+      "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "area", "textMode": "auto"
+      },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" }, "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS inserts FROM `${catalog}`.`${schema}`.`${table}` WHERE _pg_change_type = 'insert'"
+        }
+      ]
+    },
+    {
+      "id": 103,
+      "type": "stat",
+      "title": "Delete events (tombstones)",
+      "gridPos": { "x": 12, "y": 3, "w": 6, "h": 4 },
+      "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "area", "textMode": "auto"
+      },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" }, "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS deletes FROM `${catalog}`.`${schema}`.`${table}` WHERE _pg_change_type = 'delete'"
+        }
+      ]
+    },
+    {
+      "id": 104,
+      "type": "stat",
+      "title": "Distinct symbols ever seen",
+      "gridPos": { "x": 18, "y": 3, "w": 6, "h": 4 },
+      "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "none", "textMode": "auto"
+      },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT symbol) AS symbols FROM `${catalog}`.`${schema}`.`${table}` WHERE _pg_change_type IN ('insert','update_postimage')"
+        }
+      ]
+    },
+    {
+      "id": 110,
+      "type": "barchart",
+      "title": "Events by _pg_change_type",
+      "gridPos": { "x": 0, "y": 7, "w": 12, "h": 8 },
+      "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "table",
+          "rawSql": "SELECT _pg_change_type AS change_type, COUNT(*) AS events FROM `${catalog}`.`${schema}`.`${table}` GROUP BY _pg_change_type ORDER BY events DESC"
+        }
+      ]
+    },
+    {
+      "id": 111,
+      "type": "timeseries",
+      "title": "Events landing per minute",
+      "gridPos": { "x": 12, "y": 7, "w": 12, "h": 8 },
+      "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "bars", "lineWidth": 0, "fillOpacity": 100 },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('MINUTE', _timestamp) AS time, _pg_change_type AS metric, COUNT(*) AS value FROM `${catalog}`.`${schema}`.`${table}` WHERE _timestamp > date_sub(now(), 1) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 120,
+      "type": "table",
+      "title": "Recent change events (last 30)",
+      "gridPos": { "x": 0, "y": 15, "w": 24, "h": 10 },
+      "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" } }, "overrides": [] },
+      "options": { "showHeader": true },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "table",
+          "rawSql": "SELECT _timestamp, _pg_change_type, _pg_lsn, time, symbol, price, volume FROM `${catalog}`.`${schema}`.`${table}` ORDER BY _pg_lsn DESC LIMIT 30"
+        }
+      ]
+    }
+  ]
+}

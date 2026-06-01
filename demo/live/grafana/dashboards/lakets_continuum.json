@@ -1,0 +1,370 @@
+{
+  "uid": "lakets-continuum",
+  "title": "LakeTS — Hot ↔ Cold Continuum",
+  "tags": ["lakets", "lakebase", "databricks", "delta", "union"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 6,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "catalog",
+        "type": "textbox",
+        "label": "Cold catalog",
+        "current": { "text": "taran-interop", "value": "taran-interop" },
+        "query": "taran-interop"
+      },
+      {
+        "name": "schema",
+        "type": "textbox",
+        "label": "Cold schema",
+        "current": { "text": "lakets", "value": "lakets" },
+        "query": "lakets"
+      },
+      {
+        "name": "table",
+        "type": "textbox",
+        "label": "Cold table (Sync target)",
+        "current": { "text": "lb__shadow_stock_ticks_history", "value": "lb__shadow_stock_ticks_history" },
+        "query": "lb__shadow_stock_ticks_history"
+      }
+    ]
+  },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 3 },
+      "options": {
+        "mode": "markdown",
+        "content": "# LakeTS — Hot ↔ Cold Continuum\nEvery panel UNIONs **Lakebase** (hot, last 10 min by retention policy) with **Databricks SQL** (cold, SCD Type 2 Delta via Lakehouse Sync — inserts kept forever). Watch the cold series extend left as time passes while hot stays anchored at `now`. Target: `${catalog}.${schema}.${table}`."
+      }
+    },
+
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Hot ticks (Lakebase live)",
+      "description": "stock_ticks row count. Bounded by drop_after=1h retention.",
+      "gridPos": { "x": 0, "y": 3, "w": 6, "h": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "yellow", "mode": "fixed" } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+          "format": "table",
+          "rawSql": "SELECT count(*)::bigint AS hot FROM stock_ticks"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Cold inserts (Delta forever)",
+      "description": "_pg_change_type='insert' rows in the SCD Type 2 history. Never shrinks.",
+      "gridPos": { "x": 6, "y": 3, "w": 6, "h": 4 },
+      "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "blue", "mode": "fixed" } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "table",
+          "rawSql": "SELECT count(*) AS cold_inserts FROM `${catalog}`.`${schema}`.`${table}` WHERE _pg_change_type = 'insert'"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Cold tombstones (Delta)",
+      "description": "_pg_change_type='delete' rows. Each retention sweep adds tombstones; original inserts stay.",
+      "gridPos": { "x": 12, "y": 3, "w": 6, "h": 4 },
+      "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "orange", "mode": "fixed" } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "table",
+          "rawSql": "SELECT count(*) AS cold_deletes FROM `${catalog}`.`${schema}`.`${table}` WHERE _pg_change_type = 'delete'"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "CDC lag (sec)",
+      "description": "Wall-clock seconds since the cold tier's most recent insert. In steady state ~5-30s. Growing means Lakehouse CDF is falling behind. (Cold is the canonical record; hot is the last ~10 min of cold, so we don't sum.)",
+      "gridPos": { "x": 18, "y": 3, "w": 6, "h": 4 },
+      "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "s", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 30 }, { "color": "red", "value": 120 }] } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "table",
+          "rawSql": "SELECT unix_timestamp(current_timestamp()) - unix_timestamp(max(time)) AS lag_sec FROM `${catalog}`.`${schema}`.`${table}` WHERE _pg_change_type = 'insert'"
+        }
+      ]
+    },
+
+    {
+      "id": 50,
+      "type": "stat",
+      "title": "Lakebase total",
+      "description": "pg_database_size('databricks_postgres'). Lakebase is the live tier — bounded by retention. Steady state stays small no matter how long the demo runs.",
+      "gridPos": { "x": 0, "y": 7, "w": 6, "h": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "color": { "fixedColor": "yellow", "mode": "fixed" } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+          "format": "table",
+          "rawSql": "SELECT pg_database_size('databricks_postgres')::bigint AS bytes"
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "type": "stat",
+      "title": "Hot tier (stock_ticks partitions)",
+      "description": "sum(pg_total_relation_size) across all RANGE partitions of stock_ticks. Capped by drop_after=1h. Old partitions are dropped, not deleted row-by-row.",
+      "gridPos": { "x": 6, "y": 7, "w": 6, "h": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "color": { "fixedColor": "yellow", "mode": "fixed" } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+          "format": "table",
+          "rawSql": "SELECT coalesce(sum(pg_total_relation_size(c.oid)),0)::bigint AS bytes FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname LIKE 'stock_ticks_%'"
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "type": "stat",
+      "title": "Active partitions",
+      "description": "Hourly RANGE partitions managed by lakets.show_chunks(). Climbs as time advances, then plateaus once retention starts dropping old hours.",
+      "gridPos": { "x": 12, "y": 7, "w": 6, "h": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "yellow", "mode": "fixed" } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+          "format": "table",
+          "rawSql": "SELECT count(*)::int AS partitions FROM lakets.show_chunks('stock_ticks') WHERE status='active'"
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "type": "stat",
+      "title": "Cold tier (Delta archive)",
+      "description": "DESCRIBE DETAIL sizeInBytes on the SCD Type 2 history table. Grows monotonically — every insert and tombstone is appended forever. Filter-fields transformation extracts just sizeInBytes from the DESCRIBE row.",
+      "gridPos": { "x": 18, "y": 7, "w": 6, "h": 4 },
+      "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "sizeInBytes", "values": false }, "colorMode": "value", "graphMode": "area", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "color": { "fixedColor": "blue", "mode": "fixed" } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "table",
+          "rawSql": "DESCRIBE DETAIL `${catalog}`.`${schema}`.`${table}`"
+        }
+      ]
+    },
+
+    {
+      "id": 20,
+      "type": "text",
+      "title": "",
+      "gridPos": { "x": 0, "y": 11, "w": 24, "h": 3 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Ticks per minute — hot (yellow) overlaid on cold (blue)\nSame metric, two engines. Hot series only renders for the **last ≈10 min** (PG retention tier). Cold series spans the whole timeline. Where they overlap you can verify Lakehouse Sync is in lock-step; where only cold remains, you can see what would have been lost without it."
+      }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Ticks/min — mixed datasource UNION",
+      "description": "Series A: Lakebase stock_ticks. Series B: Delta SCD Type 2 history (inserts only).",
+      "gridPos": { "x": 0, "y": 14, "w": 24, "h": 10 },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "bars", "lineWidth": 0, "fillOpacity": 80, "stacking": { "mode": "none" } },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byFrameRefID", "options": "A" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }, { "id": "displayName", "value": "hot (Lakebase)" }] },
+          { "matcher": { "id": "byFrameRefID", "options": "B" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }, { "id": "displayName", "value": "cold (Delta)" }] }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum", "lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+          "format": "time_series",
+          "rawSql": "SELECT lakets.time_bucket('1 minute'::interval, time) AS time, count(*)::int AS ticks FROM stock_ticks WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('MINUTE', time) AS time, count(*) AS ticks FROM `${catalog}`.`${schema}`.`${table}` WHERE _pg_change_type = 'insert' AND $__timeFilter(time) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+
+    {
+      "id": 30,
+      "type": "text",
+      "title": "",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 3 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Volume + symbols by tier\nLeft: aggregate **volume per minute** by tier (sum of `volume` column). Right: distinct symbol counts — hot shows what's live now, cold shows the full historical universe."
+      }
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Volume per minute — hot vs cold",
+      "description": "sum(volume) per minute from each tier.",
+      "gridPos": { "x": 0, "y": 27, "w": 16, "h": 9 },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "lineInterpolation": "smooth", "spanNulls": true },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byFrameRefID", "options": "A" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }, { "id": "displayName", "value": "hot volume" }] },
+          { "matcher": { "id": "byFrameRefID", "options": "B" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }, { "id": "displayName", "value": "cold volume" }] }
+        ]
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["sum", "max"] }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+          "format": "time_series",
+          "rawSql": "SELECT lakets.time_bucket('1 minute'::interval, time) AS time, sum(volume)::bigint AS volume FROM stock_ticks WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('MINUTE', time) AS time, sum(volume) AS volume FROM `${catalog}`.`${schema}`.`${table}` WHERE _pg_change_type = 'insert' AND $__timeFilter(time) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "type": "bargauge",
+      "title": "Distinct symbols by tier",
+      "description": "Hot: symbols currently in LVC. Cold: symbols ever seen in Delta history.",
+      "gridPos": { "x": 16, "y": 27, "w": 8, "h": 9 },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } },
+        "overrides": [
+          { "matcher": { "id": "byFrameRefID", "options": "A" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }, { "id": "displayName", "value": "hot (LVC)" }] },
+          { "matcher": { "id": "byFrameRefID", "options": "B" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }, { "id": "displayName", "value": "cold (Delta)" }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+          "format": "table",
+          "rawSql": "SELECT count(*)::int AS symbols FROM _lvc_stock_ticks"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "table",
+          "rawSql": "SELECT count(DISTINCT symbol) AS symbols FROM `${catalog}`.`${schema}`.`${table}` WHERE _pg_change_type IN ('insert','update_postimage')"
+        }
+      ]
+    },
+
+    {
+      "id": 40,
+      "type": "text",
+      "title": "",
+      "gridPos": { "x": 0, "y": 36, "w": 24, "h": 3 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Recent events — last 25 from each tier\nUNIONed table. `tier` column identifies the source. Hot rows come from `stock_ticks`; cold rows from the Delta history. Sorted by event time DESC."
+      }
+    },
+    {
+      "id": 41,
+      "type": "table",
+      "title": "UNION ALL — hot + cold (latest 25 each)",
+      "description": "Two queries, one panel. Grafana 'concatenate fields' isn't needed — each frame appears as its own page in the table footer; the table renders them stacked.",
+      "gridPos": { "x": 0, "y": 39, "w": 24, "h": 11 },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" } }, "overrides": [] },
+      "options": { "showHeader": true, "footer": { "show": false } },
+      "transformations": [
+        {
+          "id": "concatenate",
+          "options": { "frameNameMode": "label", "frameNameLabel": "tier" }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": { "tier": 0, "event_time": 1, "symbol": 2, "price": 3, "volume": 4 },
+            "renameByName": {}
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "hot",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+          "format": "table",
+          "rawSql": "SELECT time AS event_time, symbol, price, volume FROM stock_ticks ORDER BY time DESC LIMIT 25"
+        },
+        {
+          "refId": "cold",
+          "datasource": { "type": "mullerpeter-databricks-datasource", "uid": "databricks" },
+          "format": "table",
+          "rawSql": "SELECT time AS event_time, symbol, price, volume FROM `${catalog}`.`${schema}`.`${table}` WHERE _pg_change_type = 'insert' ORDER BY time DESC LIMIT 25"
+        }
+      ]
+    }
+  ]
+}

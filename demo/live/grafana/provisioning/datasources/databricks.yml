@@ -1,0 +1,36 @@
+apiVersion: 1
+
+# Databricks SQL (cold tier — UC Delta SCD Type 2 via Lakehouse Sync)
+#
+# Uses the community plugin mullerpeter-databricks-datasource (delisted from
+# the Grafana catalog but still maintained at github.com/mullerpeter/databricks-grafana).
+# Installed unsigned via GF_INSTALL_PLUGINS in docker-compose.yml.
+#
+# Auth: Personal Access Token (`dsn` mode). The token is SP-owned (see README
+# "Identity model for the cold-tier datasource") so Databricks audit logs
+# attribute queries to the SP, not to the operator's user account.
+datasources:
+  - name: Databricks
+    type: mullerpeter-databricks-datasource
+    uid: databricks
+    access: proxy
+    isDefault: false
+    editable: true
+    jsonData:
+      hostname: ${DATABRICKS_HOST}
+      path: ${DATABRICKS_HTTP_PATH}
+      port: "443"
+      authenticationMethod: dsn
+      timeInterval: 30s
+      maxOpenConns: "5"
+      maxIdleConns: "2"
+      connMaxLifetime: "3600"
+      retries: "3"
+      retryBackoff: "1"
+      maxRetryDuration: "60"
+      timeout: "60"
+      maxRows: "10000"
+      defaultQueryFormat: table
+      defaultEditorMode: code
+    secureJsonData:
+      token: ${DATABRICKS_TOKEN}

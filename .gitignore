@@ -12,10 +12,6 @@ CLAUDE.md
 # Backstop: any stray scratch planning markdown left at repo root (move it to .local/)
 /*_PLAN.md
 
-# Internal-only dirs kept at repo root (referenced by tracked config/docs/README)
-demo/
-grafana/
-
 # Local website dev/debug helper scripts (not part of the site build)
 website/scripts/
 
@@ -63,6 +59,7 @@ venv/
 # Environment
 .env
 .env.*
+!.env.example
 
 # GitHub Actions runner cache
 _actions/

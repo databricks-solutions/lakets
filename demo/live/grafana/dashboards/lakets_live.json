@@ -1,0 +1,291 @@
+{
+  "uid": "lakets-live",
+  "title": "LakeTS — Live Activity",
+  "tags": ["lakets", "lakebase", "time-series"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "5s",
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "symbol",
+        "type": "query",
+        "label": "Symbol focus",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+        "query": "SELECT symbol FROM stock_assets ORDER BY symbol",
+        "refresh": 1,
+        "current": { "text": "AAPL", "value": "AAPL" }
+      }
+    ]
+  },
+  "annotations": { "list": [] },
+  "panels": [
+    { "id": 1, "type": "text", "title": "",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 3 },
+      "options": { "mode": "markdown", "content": "# LakeTS — Live Activity\nEverything below runs against **Lakebase Postgres** via LakeTS' PL/pgSQL functions. Every panel title names the LakeTS primitive driving it. Dashboard refreshes every 5s." }
+    },
+
+    { "id": 2, "type": "stat", "title": "Ticks/sec (last 60s) — ingest rate",
+      "description": "Live heartbeat. Every tick fires the LVC trigger, the shadow-sync trigger, and the invalidation-log trigger.",
+      "gridPos": { "x": 0, "y": 3, "w": 6, "h": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 1, "color": { "fixedColor": "green", "mode": "fixed" } }, "overrides": [] },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT count(*)::float / 60.0 AS rate FROM stock_ticks WHERE time > now() - interval '60 seconds'" }]
+    },
+    { "id": 3, "type": "stat", "title": "Active symbols (LVC)",
+      "description": "count(*) on _lvc_stock_ticks — trigger-maintained cache, sub-10ms.",
+      "gridPos": { "x": 6, "y": 3, "w": 6, "h": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "blue", "mode": "fixed" } }, "overrides": [] },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT count(*)::bigint AS symbols FROM _lvc_stock_ticks" }]
+    },
+    { "id": 4, "type": "stat", "title": "Active partitions",
+      "description": "ChronoTable auto-routes INSERTs to daily/hourly partitions. Count grows as time passes.",
+      "gridPos": { "x": 12, "y": 3, "w": 6, "h": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT count(*)::bigint AS active FROM lakets._chunk_metadata c JOIN lakets._chronotable_registry h ON h.id=c.chronotable_id WHERE h.table_name='stock_ticks' AND c.status='active'" }]
+    },
+    { "id": 5, "type": "stat", "title": "1-min rollup watermark lag",
+      "description": "Seconds behind now(). Advances each time refresh_rollup_cascade() fires (every 1 min).",
+      "gridPos": { "x": 18, "y": 3, "w": 6, "h": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "s", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 120 }, { "color": "red", "value": 300 } ] } }, "overrides": [] },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT EXTRACT(EPOCH FROM (now() - watermark))::int AS lag FROM lakets._rollup_registry WHERE name='ohlcv_1min'" }]
+    },
+
+    { "id": 10, "type": "text", "title": "",
+      "gridPos": { "x": 0, "y": 7, "w": 24, "h": 3 },
+      "options": { "mode": "markdown", "content": "## 1. ChronoTable — RANGE partitioning, auto-routing\nLakeTS converts `stock_ticks` into a PostgreSQL RANGE-partitioned table with one partition per hour. Each INSERT is routed to the right chunk by PG's native dispatcher — **no application logic**. Row counts below update live as ticks flow in." }
+    },
+    { "id": 11, "type": "timeseries", "title": "Ticks per minute — time_bucket('1 minute', time)",
+      "description": "lakets.time_bucket() = date_bin() under the hood. Truncates timestamps to aligned bucket boundaries.",
+      "gridPos": { "x": 0, "y": 10, "w": 16, "h": 8 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "bars", "lineWidth": 0, "fillOpacity": 100 }, "unit": "short" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "time_series",
+        "rawSql": "SELECT lakets.time_bucket('1 minute'::interval, time) AS time, count(*)::int AS ticks FROM stock_ticks WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1" }]
+    },
+    { "id": 12, "type": "table", "title": "Active partitions — show_chunks('stock_ticks')",
+      "description": "Each row = one RANGE partition. 'row_count' is auto-updated by the _touch_chunk_metadata() trigger on every write.",
+      "gridPos": { "x": 16, "y": 10, "w": 8, "h": 8 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" } }, "overrides": [] },
+      "options": { "showHeader": true },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT split_part(chunk_name,'.',2) AS chunk, range_start::time AS start, status, row_count FROM lakets.show_chunks('stock_ticks') WHERE status='active' ORDER BY range_start DESC LIMIT 10" }]
+    },
+
+    { "id": 20, "type": "text", "title": "",
+      "gridPos": { "x": 0, "y": 18, "w": 24, "h": 3 },
+      "options": { "mode": "markdown", "content": "## 2. Time-series aggregation — `time_bucket` + `first()` + `last()`\nThese three primitives give you OHLCV candles in one GROUP BY. `lakets.first(price, time)` = the price associated with the **earliest** time in each bucket (open). `lakets.last(price, time)` = the price at the **latest** time (close). Driven by the 1-minute rollup, refreshed every minute by the `rollup_refresh_hot` Databricks job." }
+    },
+    { "id": 21, "type": "timeseries", "title": "OHLC candles — ${symbol} (from _rollup_ohlcv_1min)",
+      "description": "Direct query against the rollup table. Low row count = fast. open/high/low/close all visible.",
+      "gridPos": { "x": 0, "y": 21, "w": 16, "h": 10 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "lineWidth": 2, "fillOpacity": 0, "spanNulls": true }, "unit": "currencyUSD" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max", "min"] }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "time_series",
+        "rawSql": "SELECT bucket AS time, open, high, low, close FROM public._rollup_ohlcv_1min WHERE symbol = '${symbol}' AND bucket > now() - interval '30 minutes' ORDER BY 1" }]
+    },
+    { "id": 22, "type": "table", "title": "Latest candle per symbol — 1-minute OHLCV",
+      "description": "All 10 symbols, their most recent 1-minute bar.",
+      "gridPos": { "x": 16, "y": 21, "w": 8, "h": 10 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" }, "decimals": 2 }, "overrides": [{"matcher":{"id":"byName","options":"volume"},"properties":[{"id":"decimals","value":0}]}] },
+      "options": { "showHeader": true },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT DISTINCT ON (symbol) symbol, open, high, low, close, volume FROM public._rollup_ohlcv_1min ORDER BY symbol, bucket DESC" }]
+    },
+
+    { "id": 30, "type": "text", "title": "",
+      "gridPos": { "x": 0, "y": 31, "w": 24, "h": 3 },
+      "options": { "mode": "markdown", "content": "## 3. Change-detection primitives — `delta()` and `rate()`\n`lakets.delta(current, previous)` returns `current - previous` (with counter-reset handling). `lakets.rate(val, prev_val, time, prev_time)` divides by elapsed seconds. Common pairing: price change per bucket + VWAP." }
+    },
+    { "id": 31, "type": "timeseries", "title": "1-min price Δ — delta() — ${symbol}",
+      "description": "Minute-over-minute close delta. Bars above/below zero show direction of change.",
+      "gridPos": { "x": 0, "y": 34, "w": 12, "h": 8 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "bars", "lineWidth": 0, "fillOpacity": 80 }, "unit": "currencyUSD" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "hidden" }, "tooltip": { "mode": "single" } },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "time_series",
+        "rawSql": "SELECT bucket AS time, lakets.delta(close, LAG(close) OVER (ORDER BY bucket)) AS price_delta FROM public._rollup_ohlcv_1min WHERE symbol='${symbol}' AND bucket > now() - interval '30 minutes' ORDER BY 1" }]
+    },
+    { "id": 32, "type": "timeseries", "title": "VWAP — sum(price*volume)/sum(volume) per minute",
+      "description": "Volume-weighted average price. Shows where most of the trading volume happened.",
+      "gridPos": { "x": 12, "y": 34, "w": 12, "h": 8 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 15 }, "unit": "currencyUSD" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "time_series",
+        "rawSql": "SELECT lakets.time_bucket('1 minute'::interval, time) AS time, symbol AS metric, (sum(price*volume)/NULLIF(sum(volume),0)) AS value FROM stock_ticks WHERE $__timeFilter(time) GROUP BY 1, symbol ORDER BY 1" }]
+    },
+
+    { "id": 40, "type": "text", "title": "",
+      "gridPos": { "x": 0, "y": 42, "w": 24, "h": 3 },
+      "options": { "mode": "markdown", "content": "## 4. Window functions on rollups — Moving averages + Bollinger Bands\nBecause the rollup tables are compact, **window functions run in microseconds** instead of scanning millions of raw ticks. SMA5/SMA20 are `AVG() OVER (ROWS BETWEEN N PRECEDING)`. Bollinger = SMA20 ± 2·STDDEV(close, 20)." }
+    },
+    { "id": 41, "type": "timeseries", "title": "Close + SMA5 + SMA20 — ${symbol}",
+      "description": "When SMA5 crosses above SMA20 it's a classic 'golden cross' signal. Read from _rollup_ohlcv_1min.",
+      "gridPos": { "x": 0, "y": 45, "w": 12, "h": 9 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2 }, "unit": "currencyUSD" }, "overrides": [{"matcher":{"id":"byName","options":"close"},"properties":[{"id":"custom.lineWidth","value":1},{"id":"custom.fillOpacity","value":20}]}] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "time_series",
+        "rawSql": "SELECT bucket AS time, close, AVG(close) OVER (ORDER BY bucket ROWS BETWEEN 4 PRECEDING AND CURRENT ROW) AS sma5, AVG(close) OVER (ORDER BY bucket ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS sma20 FROM public._rollup_ohlcv_1min WHERE symbol='${symbol}' AND bucket > now() - interval '30 minutes' ORDER BY 1" }]
+    },
+    { "id": 42, "type": "timeseries", "title": "Bollinger Bands — ${symbol} (SMA20 ± 2σ)",
+      "description": "Upper/lower = SMA20 plus/minus 2·STDDEV(close, 20). Wider = higher recent volatility.",
+      "gridPos": { "x": 12, "y": 45, "w": 12, "h": 9 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "fillBelowTo": "lower_band" }, "unit": "currencyUSD" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "time_series",
+        "rawSql": "WITH w AS (SELECT bucket, close, AVG(close) OVER (ORDER BY bucket ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS sma, STDDEV(close) OVER (ORDER BY bucket ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS sd FROM public._rollup_ohlcv_1min WHERE symbol='${symbol}' AND bucket > now() - interval '30 minutes') SELECT bucket AS time, close, sma AS sma20, sma + 2*sd AS upper_band, sma - 2*sd AS lower_band FROM w ORDER BY 1" }]
+    },
+
+    { "id": 50, "type": "text", "title": "",
+      "gridPos": { "x": 0, "y": 54, "w": 24, "h": 3 },
+      "options": { "mode": "markdown", "content": "## 5. `histogram()` — price distribution across buckets\n`lakets.histogram(value, min, max, num_buckets)` maps each value to an integer bucket index. Gives you a density curve over a fixed range." }
+    },
+    { "id": 51, "type": "barchart", "title": "Price distribution — ${symbol} last 30 min",
+      "description": "10 equal-width buckets between min and max seen in the window.",
+      "gridPos": { "x": 0, "y": 57, "w": 24, "h": 8 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 0, "fillOpacity": 80 } }, "overrides": [] },
+      "options": { "orientation": "vertical", "xTickLabelRotation": 0, "legend": { "displayMode": "hidden" }, "tooltip": { "mode": "single" } },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "WITH b AS (SELECT min(price) AS lo, max(price) AS hi FROM stock_ticks WHERE symbol='${symbol}' AND time > now() - interval '30 minutes') SELECT (lo + (hi-lo) * (h.bucket-1) / 10.0)::numeric(10,2)::text AS price_bucket, count(*)::int AS observations FROM stock_ticks s, b, LATERAL (SELECT lakets.histogram(s.price, b.lo::double precision, b.hi::double precision, 10) AS bucket) h WHERE s.symbol='${symbol}' AND s.time > now() - interval '30 minutes' GROUP BY price_bucket ORDER BY price_bucket" }]
+    },
+
+    { "id": 60, "type": "text", "title": "",
+      "gridPos": { "x": 0, "y": 65, "w": 24, "h": 3 },
+      "options": { "mode": "markdown", "content": "## 6. Gap-fill primitives — `time_bucket_gapfill()` + `locf()`\n`time_bucket_gapfill()` emits EVERY bucket boundary, even where no data exists. `locf()` (Last Observation Carried Forward) fills those NULLs from the most recent prior value." }
+    },
+    { "id": 61, "type": "timeseries", "title": "time_bucket_gapfill + locf — carries forward across quiet periods",
+      "description": "Even if a minute has zero ticks, the series continues at the last-known price. Switch between symbols to see coverage.",
+      "gridPos": { "x": 0, "y": 68, "w": 24, "h": 8 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "lineWidth": 2, "spanNulls": true }, "unit": "currencyUSD" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "time_series",
+        "rawSql": "WITH buckets AS (SELECT lakets.time_bucket_gapfill('1 minute'::interval, now() - interval '30 minutes', now()) AS bucket), raw AS (SELECT lakets.time_bucket('1 minute'::interval, time) AS bucket, lakets.last(price, time) AS price FROM stock_ticks WHERE symbol='${symbol}' AND time > now() - interval '30 minutes' GROUP BY 1) SELECT b.bucket AS time, lakets.locf(r.price, LAG(r.price) OVER (ORDER BY b.bucket)) AS gapfilled_close FROM buckets b LEFT JOIN raw r USING (bucket) ORDER BY 1" }]
+    },
+
+    { "id": 70, "type": "text", "title": "",
+      "gridPos": { "x": 0, "y": 76, "w": 24, "h": 3 },
+      "options": { "mode": "markdown", "content": "## 7. Rollup engine internals — DAG cascade + watermark + invalidation log\nThe rollup DAG (1min → 1hour → 1day) refreshes in topological order. Each level has its own watermark. Writes below the watermark add entries to `_rollup_invalidation_log` — the refresh drains them every minute." }
+    },
+    { "id": 71, "type": "table", "title": "show_rollup_dag() — refresh order + watermarks",
+      "description": "Kahn's topological sort orders the refresh. Each row shows where we are vs now().",
+      "gridPos": { "x": 0, "y": 79, "w": 12, "h": 7 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" } }, "overrides": [] },
+      "options": { "showHeader": true },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT r.name, d.refresh_order AS ord, r.bucket_interval::text AS bucket, d.depends_on_names AS depends_on, r.watermark, EXTRACT(EPOCH FROM (now() - r.watermark))::int AS wm_lag_s FROM lakets._rollup_registry r JOIN lakets.show_rollup_dag() d ON d.rollup_name=r.name ORDER BY d.refresh_order" }]
+    },
+    { "id": 72, "type": "timeseries", "title": "Invalidation log depth + ticks/min (fill/drain cycle)",
+      "description": "Orange = dirty buckets still queued. Green = ticks entering the system. Every minute, the cascade drains orange.",
+      "gridPos": { "x": 12, "y": 79, "w": 12, "h": 7 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "lineWidth": 2 } }, "overrides": [{"matcher":{"id":"byName","options":"dirty_buckets"},"properties":[{"id":"color","value":{"mode":"fixed","fixedColor":"orange"}}]},{"matcher":{"id":"byName","options":"ticks_per_min"},"properties":[{"id":"color","value":{"mode":"fixed","fixedColor":"green"}}]}] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "time_series",
+          "rawSql": "SELECT now() AS time, (SELECT count(*)::int FROM lakets._rollup_invalidation_log) AS dirty_buckets" },
+        { "refId": "B", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "time_series",
+          "rawSql": "SELECT lakets.time_bucket('1 minute'::interval, time) AS time, count(*)::int AS ticks_per_min FROM stock_ticks WHERE time > now() - interval '30 minutes' GROUP BY 1 ORDER BY 1" }
+      ]
+    },
+
+    { "id": 80, "type": "text", "title": "",
+      "gridPos": { "x": 0, "y": 86, "w": 24, "h": 3 },
+      "options": { "mode": "markdown", "content": "## 8. Last Value Cache (LVC) — sub-10ms latest state\nEvery INSERT on `stock_ticks` fires `trg_lakets_lvc` which upserts into `_lvc_stock_ticks`. PK lookup by symbol returns the latest price in O(1). Contrast with scanning millions of raw ticks to find `max(time)` per symbol." }
+    },
+    { "id": 81, "type": "table", "title": "LVC — latest price + staleness per symbol",
+      "description": "Select a symbol from the dropdown at the top to focus the other panels on it.",
+      "gridPos": { "x": 0, "y": 89, "w": 24, "h": 8 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" }, "decimals": 2 }, "overrides": [{"matcher":{"id":"byName","options":"price"},"properties":[{"id":"unit","value":"currencyUSD"}]},{"matcher":{"id":"byName","options":"stale_seconds"},"properties":[{"id":"unit","value":"s"},{"id":"custom.displayMode","value":"color-background"},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":30},{"color":"red","value":120}]}}]}] },
+      "options": { "showHeader": true },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT l.symbol, a.sector, l.price, l.volume, l.last_updated, EXTRACT(EPOCH FROM (now() - l.last_updated))::int AS stale_seconds FROM _lvc_stock_ticks l LEFT JOIN stock_assets a USING (symbol) ORDER BY l.symbol" }]
+    },
+
+    { "id": 85, "type": "text", "title": "",
+      "gridPos": { "x": 0, "y": 97, "w": 24, "h": 3 },
+      "options": { "mode": "markdown", "content": "## 9. Retention policy — declarative lifecycle\nThe policy lives in `lakets._policy_registry`. `tier_after` controls when the retention job `DELETE`s from `_shadow_stock_ticks` (triggers SCD Type 2 tombstones in Delta — history preserved). `drop_after` controls when `lakets.execute_retention()` drops hot partitions (DDL, not replicated). To change, run `lakets.add_tiered_retention_policy()` — no code deploy needed." }
+    },
+    { "id": 86, "type": "table", "title": "show_retention_policy('stock_ticks')",
+      "description": "Config + last_run_at. Updated each time retention fires.",
+      "gridPos": { "x": 0, "y": 100, "w": 16, "h": 5 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" } }, "overrides": [] },
+      "options": { "showHeader": true },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT policy_type, tier_after, drop_after, enabled, last_run_at, EXTRACT(EPOCH FROM (now() - last_run_at))::int AS since_last_s FROM lakets.show_retention_policy('stock_ticks')" }]
+    },
+    { "id": 87, "type": "stat", "title": "Policies total",
+      "description": "From lakets_metrics() — Prometheus-compatible. Any policy registered counts here.",
+      "gridPos": { "x": 16, "y": 100, "w": 8, "h": 5 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT SUM(metric_value)::int AS total FROM lakets.lakets_metrics() WHERE metric_name = 'lakets_policies_total'" }]
+    },
+
+    { "id": 90, "type": "text", "title": "",
+      "gridPos": { "x": 0, "y": 105, "w": 24, "h": 3 },
+      "options": { "mode": "markdown", "content": "## 10. Shadow table — ready for Lakehouse Sync\nPartitioned tables can't be Lakehouse Sync sources, so LakeTS maintains an unpartitioned `_shadow_stock_ticks` via an INSERT trigger. Lakehouse Sync continuously replicates shadow → Delta as **SCD Type 2** — every change is appended (DELETEs become `_pg_change_type='delete'` tombstones), preserving history forever." }
+    },
+    { "id": 91, "type": "stat", "title": "stock_ticks total rows",
+      "gridPos": { "x": 0, "y": 108, "w": 6, "h": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT count(*)::bigint AS n FROM stock_ticks" }]
+    },
+    { "id": 92, "type": "stat", "title": "_shadow_stock_ticks rows",
+      "description": "Grows with INSERTs, SHRINKS when retention's shadow-prune runs (every 15 min). Delta still keeps history.",
+      "gridPos": { "x": 6, "y": 108, "w": 6, "h": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT count(*)::bigint AS n FROM lakets_cdf._shadow_stock_ticks" }]
+    },
+    { "id": 93, "type": "stat", "title": "Sync lag (shadow − Delta)",
+      "description": "Number of rows in shadow that Lakehouse Sync hasn't replicated yet. Static here — the cold-tier dashboard (Databricks Enterprise) shows the Delta side.",
+      "gridPos": { "x": 12, "y": 108, "w": 6, "h": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "fixedColor": "text", "mode": "fixed" } }, "overrides": [] },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT count(*)::bigint AS n FROM lakets_cdf._shadow_stock_ticks WHERE time > now() - interval '30 seconds'" }]
+    },
+    { "id": 94, "type": "stat", "title": "Rollup speedup — raw vs _rollup_ohlcv_1min",
+      "description": "Scanning _rollup_ohlcv_1min to answer 'avg price by minute' is N rows of rollup vs N×~600 raw ticks.",
+      "gridPos": { "x": 18, "y": 108, "w": 6, "h": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "fixedColor": "purple", "mode": "fixed" } }, "overrides": [] },
+      "targets": [{ "refId": "A", "datasource": { "type": "grafana-postgresql-datasource", "uid": "lakebase" }, "format": "table",
+        "rawSql": "SELECT (SELECT count(*) FROM stock_ticks WHERE time > now() - interval '30 minutes') / NULLIF((SELECT count(*) FROM public._rollup_ohlcv_1min WHERE bucket > now() - interval '30 minutes'), 0) AS speedup" }]
+    }
+  ]
+}
