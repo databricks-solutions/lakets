@@ -179,7 +179,7 @@ BEGIN
     END IF;
 
     -- _policy_registry has no unique constraint on (chronotable_id, policy_type),
-    -- so guard with an existence check (matches the original add_compression_policy).
+    -- so guard with an existence check.
     IF EXISTS (
         SELECT 1 FROM lakets._policy_registry
         WHERE chronotable_id = v_chronotable_id AND policy_type = 'tiering'
@@ -388,7 +388,7 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     UPDATE lakets._chunk_metadata
-    SET status = 'active', tiered_at = NULL, compressed_at = NULL
+    SET status = 'active', tiered_at = NULL
     WHERE chunk_name = p_chunk_name AND status = 'tiered';
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Chunk % not found or not tiered', p_chunk_name;

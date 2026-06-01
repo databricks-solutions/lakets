@@ -62,52 +62,62 @@ BEGIN
     DELETE FROM lakets._chronotable_registry WHERE table_name = 'mon_test';
 END $$;
 
--- T5: chunk_health reports compressed chunks correctly
+-- T5: chunk_health reports tiered chunks correctly
 DO $$
 DECLARE
-    v_compressed BIGINT;
+    v_tiered BIGINT;
     v_chunk_name TEXT;
 BEGIN
-    -- Create ChronoTable with enough data to compress
-    DROP TABLE IF EXISTS public.mon_comp_test CASCADE;
+    -- Create ChronoTable with enough data to age out a chunk
+    DROP TABLE IF EXISTS public.mon_tier_test CASCADE;
     DELETE FROM lakets._chunk_metadata WHERE chronotable_id IN (
-        SELECT id FROM lakets._chronotable_registry WHERE table_name = 'mon_comp_test'
+        SELECT id FROM lakets._chronotable_registry WHERE table_name = 'mon_tier_test'
     );
     DELETE FROM lakets._policy_registry WHERE chronotable_id IN (
-        SELECT id FROM lakets._chronotable_registry WHERE table_name = 'mon_comp_test'
+        SELECT id FROM lakets._chronotable_registry WHERE table_name = 'mon_tier_test'
     );
-    DELETE FROM lakets._chronotable_registry WHERE table_name = 'mon_comp_test';
+    DELETE FROM lakets._chronotable_registry WHERE table_name = 'mon_tier_test';
 
-    CREATE TABLE public.mon_comp_test (time TIMESTAMPTZ NOT NULL, val DOUBLE PRECISION);
-    INSERT INTO mon_comp_test SELECT now() - (i || ' hours')::interval, random() * 100
+    CREATE TABLE public.mon_tier_test (time TIMESTAMPTZ NOT NULL, val DOUBLE PRECISION);
+    INSERT INTO mon_tier_test SELECT now() - (i || ' hours')::interval, random() * 100
     FROM generate_series(1, 240) s(i);
-    PERFORM lakets.create_chronotable('mon_comp_test', 'time', '1 day');
-    PERFORM lakets.add_compression_policy('mon_comp_test', '3 days', 'val');
+    PERFORM lakets.create_chronotable('mon_tier_test', 'time', '1 day');
+    PERFORM lakets.add_tiering_policy('mon_tier_test', '3 days');
 
-    -- Compress one chunk
-    SELECT chunk_name INTO v_chunk_name FROM lakets._get_chunks_to_compress('mon_comp_test') LIMIT 1;
+    -- Simulate a completed tiering. tier_chunk's actual drop needs live CDF;
+    -- here we only assert chunk_health surfaces the 'tiered' status.
+    SELECT chunk_name INTO v_chunk_name FROM lakets._get_chunks_to_tier('mon_tier_test') LIMIT 1;
+    IF v_chunk_name IS NULL THEN
+        SELECT cm.chunk_name INTO v_chunk_name
+        FROM lakets._chunk_metadata cm
+        JOIN lakets._chronotable_registry hr ON hr.id = cm.chronotable_id
+        WHERE hr.table_name = 'mon_tier_test' AND cm.status = 'active'
+        ORDER BY cm.range_start LIMIT 1;
+    END IF;
+
     IF v_chunk_name IS NOT NULL THEN
-        PERFORM lakets.compress_chunk(v_chunk_name);
+        UPDATE lakets._chunk_metadata SET status = 'tiered', tiered_at = now()
+        WHERE chunk_name = v_chunk_name;
 
-        SELECT compressed_chunks INTO v_compressed
+        SELECT tiered_chunks INTO v_tiered
         FROM lakets.chunk_health()
-        WHERE hypertable = 'public.mon_comp_test';
+        WHERE hypertable = 'public.mon_tier_test';
 
-        ASSERT v_compressed >= 1, format('expected >= 1 compressed chunk, got %s', v_compressed);
-        RAISE NOTICE 'T5 PASSED: chunk_health reports % compressed chunks', v_compressed;
+        ASSERT v_tiered >= 1, format('expected >= 1 tiered chunk, got %s', v_tiered);
+        RAISE NOTICE 'T5 PASSED: chunk_health reports % tiered chunks', v_tiered;
     ELSE
-        RAISE NOTICE 'T5 SKIPPED: no eligible chunks to compress';
+        RAISE NOTICE 'T5 SKIPPED: no chunks materialized for mon_tier_test';
     END IF;
 
     -- Cleanup
-    DROP TABLE IF EXISTS public.mon_comp_test CASCADE;
+    DROP TABLE IF EXISTS public.mon_tier_test CASCADE;
     DELETE FROM lakets._policy_registry WHERE chronotable_id IN (
-        SELECT id FROM lakets._chronotable_registry WHERE table_name = 'mon_comp_test'
+        SELECT id FROM lakets._chronotable_registry WHERE table_name = 'mon_tier_test'
     );
     DELETE FROM lakets._chunk_metadata WHERE chronotable_id IN (
-        SELECT id FROM lakets._chronotable_registry WHERE table_name = 'mon_comp_test'
+        SELECT id FROM lakets._chronotable_registry WHERE table_name = 'mon_tier_test'
     );
-    DELETE FROM lakets._chronotable_registry WHERE table_name = 'mon_comp_test';
+    DELETE FROM lakets._chronotable_registry WHERE table_name = 'mon_tier_test';
 END $$;
 
 -- T6: lakets_metrics includes all expected metric names

@@ -23,7 +23,7 @@
 -- Step 4: RollUp Engine (incremental time-bucketed aggregations)
 \ir 04_rollup.sql
 
--- Step 5: Compression & tiering policies
+-- Step 5: Tiering policies
 \ir 05_tiering.sql
 
 -- Step 6: Retention policies

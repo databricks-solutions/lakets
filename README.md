@@ -17,7 +17,7 @@ LakeTS is a time series toolkit for Databricks Lakebase — pure SQL (PL/pgSQL) 
 | **Time Series Functions** | `time_bucket`, `first`, `last`, `locf`, `interpolate`, `delta`, `rate`, `histogram` |
 | **Gap-filling** | `time_bucket_gapfill` + LEFT JOIN for continuous time series |
 | **RollUp Engine** | Incremental aggregates with per-bucket refresh, invalidation tracking, cold-tier re-aggregation, chunk-skip pruning, batch refresh, DAG orchestration, and Delta export |
-| **Compression & Tiering** | Policy-based tiering from Lakebase to Delta Lake |
+| **Tiering** | Policy-based eviction of cold partitions from Lakebase once CDF has flushed them to the Unity Catalog Managed Table |
 | **Retention** | Automated data lifecycle management across both tiers |
 | **Lakehouse Sync** | CDC-based replication to Delta via shadow table pattern |
 | **Last Value Cache** | Sub-10ms latest-state queries via `enable_lvc()` |
@@ -112,7 +112,7 @@ FROM metrics GROUP BY 1 ORDER BY 1;
 SELECT lakets.enable_lvc('system_metrics', ARRAY['host'], ARRAY['cpu','memory']);
 
 -- Set up lifecycle policies
-SELECT lakets.add_compression_policy('metrics', '7 days');
+SELECT lakets.add_tiering_policy('metrics', '7 days');
 SELECT lakets.add_retention_policy('metrics', '30 days');
 ```
 
@@ -182,7 +182,7 @@ LakeTS ships a pre-built **Databricks AI/BI dashboard** for monitoring your inst
 
 | Page | Panels |
 |------|--------|
-| **Partition Health** | Hypertable count, chunk counts by status (active/compressed/tiered/dropped), chunk health table per hypertable, estimated row counts |
+| **Partition Health** | Hypertable count, chunk counts by status (active/tiered/dropped), chunk health table per hypertable, estimated row counts |
 | **RollUp Monitoring** | Stale RollUp counter, dirty bucket total, watermark lag bar chart per RollUp (colored by refresh mode), invalidation log depth, full RollUp status table |
 | **LVC & System** | LVC-enabled table count, total cached series, database size (GB), LVC stats table, active policies by type |
 

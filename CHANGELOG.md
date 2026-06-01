@@ -10,8 +10,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version
 
 ### Added
 
+- **Per-chunk tiering durability gate.** A partition is dropped only when its CDF shadow is `STREAMING` in `wal2delta.tables` **and** `committed_lsn >= chunk.last_write_lsn` — proving Lakebase CDF has flushed every write to that chunk into the Unity Catalog Managed Table before the data leaves Lakebase. The gate compares against the chunk's own recorded write position (stamped by statement-level triggers), not the global WAL head, because a per-table `committed_lsn` does not advance while the shadow is idle. Tiering is fail-closed: it defers and retries whenever the gate is not satisfiable.
+- **`show_tiering_status()`** and the `lakets_tiering_pending_chunks` / `lakets_tiering_tiered_chunks_total` / `lakets_tiering_caught_up` Prometheus metrics for tiering observability (including CDF gate state).
+- `enable_sync` now warns when Lakebase CDF (`wal2delta`) is absent, since CDF is a prerequisite enabled on the `lakets_cdf` schema via Databricks, not by LakeTS.
+
 ### Changed
 
+- **Compression is now Tiering.** `add_compression_policy` → `add_tiering_policy` (drops the `segment_by`/`order_by` parameters); `compress_chunk`/`decompress_chunk` → `tier_chunk`/`untier_chunk` (`tier_chunk` returns `BOOLEAN` — `TRUE` dropped, `FALSE` deferred); `show_`/`remove_compression_policy` → `show_`/`remove_tiering_policy`. The `compression` policy type is now `tiering`; the `compressed` chunk status is removed (`active` → `tiered`). `_chronotable_registry.compression_enabled` is renamed `tiering_enabled`, and `_chunk_metadata` gains `last_write_lsn` (and drops the unused `compressed_at`). **Breaking — fresh release, no upgrade migration.**
 - RollUps are now always incremental. Removed the `refresh_mode` toggle and the `'full'`
   (`TRUNCATE`) refresh strategy; `create_rollup` no longer accepts a `p_refresh_mode` argument
   and `show_rollups()` no longer returns a `refresh_mode` column.
@@ -21,6 +26,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version
 
 ### Removed
 
+- The Spark-based compression job and its `{table}_archive` Delta export path. Tiering is pure Lakebase SQL (`tiering_job.py`); CDF owns the Unity Catalog copy.
 - `enable_rollup_export` / `disable_rollup_export` / `show_rollup_exports`, `sql/15_uc_integration.sql` and its functions (`register_uc_table`, `tag_uc_table`, `get_uc_registrations`, `unregister_uc_table`, `_uc_registry`), and the `rollup_export.py` / `uc_registration.py` Databricks jobs.
 
 ### Fixed

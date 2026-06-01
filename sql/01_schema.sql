@@ -48,7 +48,6 @@ CREATE TABLE IF NOT EXISTS lakets._chunk_metadata (
     status TEXT NOT NULL DEFAULT 'active',
     row_count BIGINT,
     size_bytes BIGINT,
-    compressed_at TIMESTAMPTZ,
     tiered_at TIMESTAMPTZ,
     -- Highest WAL position written to this chunk, stamped by the tiering
     -- write-tracking trigger. The tiering durability gate drops a chunk only
@@ -65,7 +64,7 @@ CREATE INDEX IF NOT EXISTS idx_chunk_metadata_range
     ON lakets._chunk_metadata(range_start, range_end);
 
 -- ---------------------------------------------------------------------------
--- Policy Registry: tracks compression, retention, and tiering policies
+-- Policy Registry: tracks tiering, retention, and tiered-retention policies
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS lakets._policy_registry (
     id SERIAL PRIMARY KEY,
@@ -157,7 +156,7 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_chunk_metadata_chunk_name
     ON lakets._chunk_metadata(chunk_name);
 
--- FK index on _policy_registry (scanned by compression/retention jobs)
+-- FK index on _policy_registry (scanned by tiering/retention jobs)
 CREATE INDEX IF NOT EXISTS idx_policy_registry_ct_type
     ON lakets._policy_registry(chronotable_id, policy_type) WHERE enabled = TRUE;
 
