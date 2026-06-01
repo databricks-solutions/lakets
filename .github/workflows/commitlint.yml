@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  # action-semantic-pull-request v6 posts a commit status with the
+  # validation result; without statuses: write it 403s ("Resource not
+  # accessible by integration") even when the title is valid.
+  statuses: write
 
 concurrency:
   group: commitlint-${{ github.event.pull_request.number }}
