@@ -2,7 +2,7 @@
 LakeTS Python Workflow Pattern Tests
 
 Unit tests validating that SQL query construction uses safe patterns
-(parameterized queries, psycopg2.sql.Identifier) instead of f-strings.
+(parameterized queries, psycopg.sql.Identifier) instead of f-strings.
 
 These tests run without a live database — all external calls are mocked.
 """

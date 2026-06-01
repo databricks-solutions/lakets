@@ -13,12 +13,17 @@ M26 enhancements:
 Schedule: On-demand, or after cold-tier ETL corrections.
 """
 import logging
+import os
 import re
 import sys
 import time
 
 from databricks.sdk import WorkspaceClient
-from psycopg2 import sql
+from psycopg import sql
+
+# Ensure sibling modules (lakebase_utils) are importable when run as a
+# spark_python_task — the entry file's directory may not be on sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from lakebase_utils import fetch_all, lakebase_cursor
 
@@ -193,8 +198,6 @@ def _get_warehouse_id(w: WorkspaceClient) -> str:
 
 
 if __name__ == "__main__":
-    import os
-
     instance = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_INSTANCE"]
     cat = sys.argv[2] if len(sys.argv) > 2 else "main"
     sch = sys.argv[3] if len(sys.argv) > 3 else "lakets_sync"

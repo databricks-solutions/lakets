@@ -55,13 +55,12 @@ cd lakets
 psql -h <host> -U <user> -d <database> -f sql/99_install.sql
 ```
 
-### Option C: Via psycopg2 (Databricks notebooks)
+### Option C: Via psycopg (Databricks notebooks)
 
 ```python
-import psycopg2
-conn = psycopg2.connect(host="<host>", user="<user>", dbname="<database>",
-                        password="<token>", sslmode="require")
-conn.autocommit = True
+import psycopg  # psycopg[binary] (v3)
+conn = psycopg.connect(host="<host>", user="<user>", dbname="<database>",
+                       password="<token>", sslmode="require", autocommit=True)
 with open('lakets.sql') as f:
     conn.cursor().execute(f.read())
 ```

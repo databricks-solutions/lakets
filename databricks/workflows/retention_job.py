@@ -9,6 +9,12 @@ For each hypertable with a retention or tiered_retention policy:
 Schedule: Daily.
 """
 import logging
+import os
+import sys
+
+# Ensure sibling modules (lakebase_utils) are importable when run as a
+# spark_python_task — the entry file's directory may not be on sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from lakebase_utils import fetch_all, lakebase_cursor
 
@@ -50,8 +56,5 @@ def run(instance_name: str):
 
 
 if __name__ == "__main__":
-    import os
-    import sys
-
     instance = sys.argv[1] if len(sys.argv) > 1 else os.environ["LAKETS_INSTANCE"]
     run(instance)
