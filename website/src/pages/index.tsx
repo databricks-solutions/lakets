@@ -283,7 +283,7 @@ const CRITICAL_FEATURES: CriticalFeature[] = [
     iconHover: "group-hover:bg-primary/20",
     title: "Last Value Cache",
     body: "Trigger-maintained \"current state\" table. Sub-10ms reads on the latest value per key, perfect for status widgets.",
-    href: "/guides/getting-started#9-last-value-cache-sub-10ms-latest-state",
+    href: "/how-to/last-value-cache",
     internal: true,
   },
   {
@@ -292,7 +292,7 @@ const CRITICAL_FEATURES: CriticalFeature[] = [
     iconHover: "group-hover:bg-secondary/20",
     title: "Lakebase CDF",
     body: "CDC replication to a Unity Catalog Managed Table via shadow tables. RollUps stay in Lakebase, raw data tiers out for long-horizon analytics.",
-    href: "/guides/lakehouse-sync-setup",
+    href: "/guides/lakebase-cdf-setup",
     internal: true,
   },
   {
@@ -301,7 +301,7 @@ const CRITICAL_FEATURES: CriticalFeature[] = [
     iconHover: "group-hover:bg-tertiary/20",
     title: "Alerts + Bulk Ingest",
     body: "SQL-native threshold and deadman alerts. JSONB batch ingest from edge devices and Prometheus-compatible writers.",
-    href: "/guides/getting-started#11-alert-rules-hot-data",
+    href: "/how-to/alerts",
     internal: true,
   },
 ];
