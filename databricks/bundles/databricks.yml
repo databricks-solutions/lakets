@@ -10,6 +10,11 @@ variables:
   delta_schema:
     description: "Unity Catalog schema for tiered data"
     default: "lakets"
+  service_principal_name:
+    description: >-
+      Application ID of the service principal the jobs run as. It must hold a
+      Lakebase Postgres role with the privileges each job needs (see
+      docs/reference/workflow-jobs). Required for the prod target.
 
 # The workflow source lives in ../workflows (a sibling of this bundle dir).
 # Sync it to the workspace so the spark_python_task files — and the shared
@@ -39,7 +44,7 @@ resources:
             - pypi:
                 package: "psycopg[binary]>=3.1,<4.0"
             - pypi:
-                package: "databricks-sdk>=0.20.0,<1.0.0"
+                package: "databricks-sdk>=0.56.0,<1.0.0"
           existing_cluster_id: ${var.cluster_id}
 
     lakets_tiering:
@@ -110,5 +115,10 @@ targets:
 
   prod:
     mode: production
+    # Jobs execute as this service principal — the identity that authenticates
+    # to Lakebase via M2M OAuth. It must own a Lakebase Postgres role with the
+    # privileges each job performs (see docs/reference/workflow-jobs).
+    run_as:
+      service_principal_name: ${var.service_principal_name}
     variables:
       cluster_id: ""  # Set to your prod cluster ID
