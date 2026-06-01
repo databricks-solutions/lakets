@@ -1,7 +1,7 @@
 -- =============================================================================
--- LakeTS RollUp Optimization — Modules 23–28
+-- LakeTS RollUp Optimization — Modules 23–27
 -- Smart refresh, batch processing, DAG orchestration, tier routing,
--- bulk import invalidation, and RollUp export.
+-- and bulk import invalidation.
 --
 -- Requires: 00_schema.sql, 03_rollup.sql (applied first via 99_install.sql)
 -- =============================================================================
@@ -14,17 +14,20 @@
 ALTER TABLE lakets._chunk_metadata
     ADD COLUMN IF NOT EXISTS last_modified_at TIMESTAMPTZ;
 
--- M23–M28: New columns on _rollup_registry
+-- M23–M27: New columns on _rollup_registry
 ALTER TABLE lakets._rollup_registry
     ADD COLUMN IF NOT EXISTS bucket_column       TEXT    DEFAULT 'bucket',
     ADD COLUMN IF NOT EXISTS source_time_column  TEXT,
     ADD COLUMN IF NOT EXISTS predicate_injection BOOLEAN DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS depends_on          INT[]   DEFAULT '{}',
-    ADD COLUMN IF NOT EXISTS cold_query_text     TEXT,
-    ADD COLUMN IF NOT EXISTS export_enabled      BOOLEAN DEFAULT FALSE,
-    ADD COLUMN IF NOT EXISTS export_delta_table  TEXT,
-    ADD COLUMN IF NOT EXISTS export_mode         TEXT    DEFAULT 'incremental',
-    ADD COLUMN IF NOT EXISTS last_exported_at    TIMESTAMPTZ;
+    ADD COLUMN IF NOT EXISTS cold_query_text     TEXT;
+
+-- Path B removal: drop legacy RollUp->UC export columns (superseded by CDF sync)
+ALTER TABLE lakets._rollup_registry
+    DROP COLUMN IF EXISTS export_enabled,
+    DROP COLUMN IF EXISTS export_delta_table,
+    DROP COLUMN IF EXISTS export_mode,
+    DROP COLUMN IF EXISTS last_exported_at;
 
 -- M26: Covering index for fast tier lookups on chunk metadata
 CREATE INDEX IF NOT EXISTS idx_chunk_metadata_ct_status_range
@@ -565,7 +568,6 @@ BEGIN
         SELECT r.id, r.name, r.bucket_interval, r.watermark
         FROM lakets._rollup_registry r
         WHERE r.source_chronotable_id = v_ct_id
-          AND r.refresh_mode = 'incremental'
     LOOP
         -- Only invalidate buckets below the watermark (above is handled by Phase 1)
         IF v_min_time < COALESCE(v_rollup.watermark, 'infinity'::timestamptz) THEN
@@ -587,83 +589,3 @@ BEGIN
 END;
 $$;
 
-
--- ═══════════════════════════════════════════════════════════════════════════════
--- MODULE 28: RollUp Export Pipeline (Lakebase API)
--- ═══════════════════════════════════════════════════════════════════════════════
-
--- ---------------------------------------------------------------------------
--- enable_rollup_export: Enables periodic export of RollUp rows to Delta Lake.
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION lakets.enable_rollup_export(
-    p_rollup_name  TEXT,
-    p_delta_table  TEXT,
-    p_export_mode  TEXT DEFAULT 'incremental'
-)
-RETURNS VOID
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    IF p_export_mode NOT IN ('full', 'incremental') THEN
-        RAISE EXCEPTION 'export_mode must be ''full'' or ''incremental'', got: %', p_export_mode;
-    END IF;
-
-    UPDATE lakets._rollup_registry
-    SET export_enabled = TRUE,
-        export_delta_table = p_delta_table,
-        export_mode = p_export_mode
-    WHERE name = p_rollup_name;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'RollUp % not found', p_rollup_name;
-    END IF;
-END;
-$$;
-
--- ---------------------------------------------------------------------------
--- disable_rollup_export: Disables RollUp export.
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION lakets.disable_rollup_export(p_rollup_name TEXT)
-RETURNS VOID
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    UPDATE lakets._rollup_registry
-    SET export_enabled = FALSE
-    WHERE name = p_rollup_name;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'RollUp % not found', p_rollup_name;
-    END IF;
-END;
-$$;
-
--- ---------------------------------------------------------------------------
--- show_rollup_exports: Shows export status and lag for all export-enabled RollUps.
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION lakets.show_rollup_exports()
-RETURNS TABLE(
-    rollup_name      TEXT,
-    delta_table      TEXT,
-    export_mode      TEXT,
-    last_exported_at TIMESTAMPTZ,
-    watermark        TIMESTAMPTZ,
-    export_lag       INTERVAL
-)
-LANGUAGE sql STABLE
-AS $$
-    SELECT
-        r.name,
-        r.export_delta_table,
-        r.export_mode,
-        r.last_exported_at,
-        r.watermark,
-        CASE
-            WHEN r.last_exported_at IS NOT NULL AND r.watermark IS NOT NULL
-            THEN r.watermark - r.last_exported_at
-            ELSE NULL
-        END
-    FROM lakets._rollup_registry r
-    WHERE r.export_enabled = TRUE
-    ORDER BY r.name;
-$$;

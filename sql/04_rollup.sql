@@ -14,7 +14,6 @@ CREATE OR REPLACE FUNCTION lakets.create_rollup(
     p_bucket_interval INTERVAL DEFAULT '1 hour',
     p_source_table    TEXT     DEFAULT NULL,
     p_source_schema   TEXT     DEFAULT 'public',
-    p_refresh_mode    TEXT     DEFAULT 'incremental',
     p_depends_on      TEXT[]   DEFAULT '{}'
 )
 RETURNS INT
@@ -94,10 +93,10 @@ BEGIN
     -- Register with new columns
     INSERT INTO lakets._rollup_registry
         (name, source_chronotable_id, rollup_table, realtime_view,
-         bucket_interval, refresh_mode, query_text, watermark, last_refreshed_at,
+         bucket_interval, query_text, watermark, last_refreshed_at,
          bucket_column, source_time_column, depends_on)
     VALUES (p_name, v_chronotable_id, v_rollup_table, v_rt_view,
-            p_bucket_interval, p_refresh_mode, p_query, v_watermark, now(),
+            p_bucket_interval, p_query, v_watermark, now(),
             v_bucket_col, v_time_col, v_dep_ids)
     RETURNING id INTO v_rollup_id;
 
@@ -147,53 +146,47 @@ BEGIN
     -- Use detected bucket column or default (M27)
     v_bucket_col := COALESCE(v_rec.bucket_column, 'bucket');
 
-    IF v_rec.refresh_mode = 'full' THEN
-        -- Full mode: TRUNCATE + re-INSERT
-        EXECUTE format('TRUNCATE public.%I', v_rec.rollup_table);
-        EXECUTE format('INSERT INTO public.%I %s', v_rec.rollup_table, v_rec.query_text);
-    ELSE
-        -- Incremental mode: only re-compute dirty window
-        v_dirty_from := COALESCE(v_rec.watermark, '-infinity'::timestamptz)
-                        - v_rec.bucket_interval;
+    -- Always incremental: re-compute only the dirty window
+    v_dirty_from := COALESCE(v_rec.watermark, '-infinity'::timestamptz)
+                    - v_rec.bucket_interval;
 
-        -- Phase 1: Watermark-based refresh (current window)
-        -- Attempt predicate injection for scan-level pruning (M23)
-        IF COALESCE(v_rec.predicate_injection, TRUE) AND v_rec.source_time_column IS NOT NULL THEN
-            v_query := lakets._inject_time_predicate(
-                v_rec.query_text, v_rec.source_time_column, v_dirty_from
-            );
-        ELSE
-            v_query := v_rec.query_text;
-        END IF;
-
-        EXECUTE format('DELETE FROM public.%I WHERE %I >= %L',
-            v_rec.rollup_table, v_bucket_col, v_dirty_from);
-
-        EXECUTE format(
-            'INSERT INTO public.%I SELECT * FROM (%s) _q WHERE _q.%I >= %L',
-            v_rec.rollup_table, v_query, v_bucket_col, v_dirty_from
+    -- Phase 1: Watermark-based refresh (current window)
+    -- Attempt predicate injection for scan-level pruning (M23)
+    IF COALESCE(v_rec.predicate_injection, TRUE) AND v_rec.source_time_column IS NOT NULL THEN
+        v_query := lakets._inject_time_predicate(
+            v_rec.query_text, v_rec.source_time_column, v_dirty_from
         );
-
-        -- Phase 2: Batch refresh of hot-tier invalidation log entries (M24)
-        SELECT array_agg(DISTINCT bucket_start ORDER BY bucket_start)
-        INTO v_dirty_buckets
-        FROM lakets._rollup_invalidation_log
-        WHERE rollup_id = v_rec.id
-          AND tier = 'hot'
-          AND bucket_start < v_dirty_from;
-
-        IF v_dirty_buckets IS NOT NULL AND array_length(v_dirty_buckets, 1) > 0 THEN
-            PERFORM lakets._refresh_buckets_chunked(
-                v_rec.id, v_rec.rollup_table, v_rec.query_text,
-                v_bucket_col, v_dirty_buckets, 100
-            );
-        END IF;
-
-        -- Clear only processed hot-tier entries (scoped to avoid racing with concurrent writes)
-        DELETE FROM lakets._rollup_invalidation_log
-        WHERE rollup_id = v_rec.id AND tier = 'hot'
-          AND bucket_start < v_dirty_from;
+    ELSE
+        v_query := v_rec.query_text;
     END IF;
+
+    EXECUTE format('DELETE FROM public.%I WHERE %I >= %L',
+        v_rec.rollup_table, v_bucket_col, v_dirty_from);
+
+    EXECUTE format(
+        'INSERT INTO public.%I SELECT * FROM (%s) _q WHERE _q.%I >= %L',
+        v_rec.rollup_table, v_query, v_bucket_col, v_dirty_from
+    );
+
+    -- Phase 2: Batch refresh of hot-tier invalidation log entries (M24)
+    SELECT array_agg(DISTINCT bucket_start ORDER BY bucket_start)
+    INTO v_dirty_buckets
+    FROM lakets._rollup_invalidation_log
+    WHERE rollup_id = v_rec.id
+      AND tier = 'hot'
+      AND bucket_start < v_dirty_from;
+
+    IF v_dirty_buckets IS NOT NULL AND array_length(v_dirty_buckets, 1) > 0 THEN
+        PERFORM lakets._refresh_buckets_chunked(
+            v_rec.id, v_rec.rollup_table, v_rec.query_text,
+            v_bucket_col, v_dirty_buckets, 100
+        );
+    END IF;
+
+    -- Clear only processed hot-tier entries (scoped to avoid racing with concurrent writes)
+    DELETE FROM lakets._rollup_invalidation_log
+    WHERE rollup_id = v_rec.id AND tier = 'hot'
+      AND bucket_start < v_dirty_from;
 
     -- Advance watermark using detected bucket column
     EXECUTE format('SELECT max(%I) FROM public.%I', v_bucket_col, v_rec.rollup_table)
@@ -272,6 +265,11 @@ BEGIN
         RAISE EXCEPTION 'RollUp % not found', p_name;
     END IF;
 
+    -- Tear down CDF sync (drops shadow + trigger) before the rollup table is dropped
+    IF EXISTS (SELECT 1 FROM lakets._rollup_registry WHERE name = p_name AND sync_enabled = TRUE) THEN
+        PERFORM lakets._disable_rollup_sync(p_name);
+    END IF;
+
     EXECUTE format('DROP VIEW IF EXISTS public.%I', v_rt_view);
     EXECUTE format('DROP TABLE IF EXISTS public.%I', v_rollup_table);
     DELETE FROM lakets._rollup_registry WHERE name = p_name;
@@ -287,14 +285,12 @@ RETURNS TABLE (
     rollup_table      TEXT,
     realtime_view     TEXT,
     bucket_interval   INTERVAL,
-    refresh_mode      TEXT,
     refresh_lag       INTERVAL,
     watermark         TIMESTAMPTZ,
     last_refreshed_at TIMESTAMPTZ,
     source_table      TEXT,
     bucket_column     TEXT,
-    depends_on        INT[],
-    export_enabled    BOOLEAN
+    depends_on        INT[]
 )
 LANGUAGE plpgsql
 AS $$
@@ -305,14 +301,12 @@ BEGIN
         r.rollup_table,
         r.realtime_view,
         r.bucket_interval,
-        r.refresh_mode,
         r.refresh_lag,
         r.watermark,
         r.last_refreshed_at,
         COALESCE(cr.schema_name || '.' || cr.table_name, 'N/A'),
         COALESCE(r.bucket_column, 'bucket'),
-        r.depends_on,
-        COALESCE(r.export_enabled, FALSE)
+        r.depends_on
     FROM lakets._rollup_registry r
     LEFT JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
     ORDER BY r.name;
@@ -347,14 +341,13 @@ BEGIN
         IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
     END IF;
 
-    -- Find all incremental RollUps registered against this ChronoTable
+    -- Find all RollUps registered against this ChronoTable
     FOR v_rec IN
         SELECT r.id, r.bucket_interval
         FROM lakets._rollup_registry r
         JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
         WHERE cr.schema_name = TG_TABLE_SCHEMA
           AND cr.table_name = COALESCE(v_parent_table, TG_TABLE_NAME)
-          AND r.refresh_mode = 'incremental'
     LOOP
         IF TG_OP = 'DELETE' THEN
             EXECUTE format('SELECT date_bin(%L, ($1).%I, %L::timestamptz)',
@@ -388,20 +381,15 @@ AS $$
 DECLARE
     v_schema TEXT;
     v_table TEXT;
-    v_mode TEXT;
 BEGIN
-    SELECT cr.schema_name, cr.table_name, r.refresh_mode
-    INTO v_schema, v_table, v_mode
+    SELECT cr.schema_name, cr.table_name
+    INTO v_schema, v_table
     FROM lakets._rollup_registry r
     JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
     WHERE r.name = p_rollup_name;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'RollUp % not found', p_rollup_name;
-    END IF;
-
-    IF v_mode != 'incremental' THEN
-        RAISE EXCEPTION 'Invalidation requires refresh_mode = incremental (current: %)', v_mode;
     END IF;
 
     -- Per-row trigger for UPDATE/DELETE (existing behavior)
@@ -476,13 +464,12 @@ BEGIN
     -- Clear invalidation log entries for this RollUp
     DELETE FROM lakets._rollup_invalidation_log WHERE rollup_id = v_rollup_id;
 
-    -- Check if other incremental RollUps on the same source table still need the trigger
+    -- Check if other RollUps on the same source table still need the trigger
     SELECT count(*) INTO v_other_count
     FROM lakets._rollup_registry r
     JOIN lakets._chronotable_registry cr ON r.source_chronotable_id = cr.id
     WHERE cr.schema_name = v_schema AND cr.table_name = v_table
-      AND r.name != p_rollup_name
-      AND r.refresh_mode = 'incremental';
+      AND r.name != p_rollup_name;
 
     IF v_other_count = 0 THEN
         EXECUTE format(

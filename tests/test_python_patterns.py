@@ -25,42 +25,6 @@ def _read_source(module_path: str) -> str:
         return f.read()
 
 
-class TestRollupExportPatterns:
-    """Verify rollup_export.py uses safe SQL patterns."""
-
-    SOURCE_PATH = "databricks/workflows/rollup_export.py"
-
-    def test_no_fstring_sql_in_filter(self):
-        """T1: filter clause uses parameterized query, not f-string."""
-        source = _read_source(self.SOURCE_PATH)
-        # Should NOT find f"AND name = '{rollup_name}'"
-        assert "f\"AND name" not in source, \
-            "rollup_export.py still uses f-string for filter clause"
-        assert "f'AND name" not in source, \
-            "rollup_export.py still uses f-string for filter clause"
-
-    def test_export_full_uses_identifier(self):
-        """T2: _export_full uses sql.Identifier for table names."""
-        source = _read_source(self.SOURCE_PATH)
-        assert "sql.Identifier" in source, \
-            "rollup_export.py should use psycopg2.sql.Identifier"
-
-    def test_export_incremental_uses_identifier(self):
-        """T3: _export_incremental uses sql.Identifier for column names."""
-        source = _read_source(self.SOURCE_PATH)
-        # Should NOT find f"WHERE {bucket_col}" pattern
-        assert 'f"SELECT * FROM public.' not in source, \
-            "rollup_export.py still uses f-string for SELECT queries"
-        assert 'f"WHERE' not in source, \
-            "rollup_export.py still uses f-string for WHERE clauses"
-
-    def test_validate_identifier_exists(self):
-        """T4: _validate_identifier function exists."""
-        source = _read_source(self.SOURCE_PATH)
-        assert "def _validate_identifier" in source, \
-            "rollup_export.py missing _validate_identifier function"
-
-
 class TestColdRollupRefreshPatterns:
     """Verify cold_rollup_refresh.py uses safe SQL patterns."""
 

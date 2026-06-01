@@ -17,7 +17,7 @@ def run(instance_name: str):
     """Refresh all RollUps."""
     with lakebase_cursor(instance_name) as cur:
         rollups = fetch_all(cur, """
-            SELECT name, refresh_mode, refresh_lag, last_refreshed_at, watermark
+            SELECT name, refresh_lag, last_refreshed_at, watermark
             FROM lakets._rollup_registry
             ORDER BY name
         """)
@@ -35,10 +35,7 @@ def run(instance_name: str):
                 result = cur.fetchone()[0]
                 if result:
                     refreshed += 1
-                    logger.info(
-                        "Refreshed: %s (mode=%s)",
-                        rollup["name"], rollup["refresh_mode"],
-                    )
+                    logger.info("Refreshed: %s", rollup["name"])
                 else:
                     skipped += 1
                     logger.info("Skipped (refresh_lag): %s", rollup["name"])

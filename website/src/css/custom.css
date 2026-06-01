@@ -102,6 +102,12 @@
  * Dark mode — Stitch palette (surface-*, on-surface-*, etc.)
  * ────────────────────────────────────────────────────────────────────── */
 
+/* Higher specificity to win against Infima's html[data-theme='dark'] rule
+ * which otherwise paints html with #1b1b1d (default Docusaurus grey). */
+html[data-theme="dark"] {
+  background-color: #0c1322;
+}
+
 [data-theme="dark"] {
   --ifm-color-primary: #ffb4aa;
   --ifm-color-primary-dark: #ff9587;
@@ -151,6 +157,20 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────────
+ * Homepage override — hide Docusaurus chrome so the Stitch-styled
+ * header (StitchHeader in src/pages/index.tsx) owns the homepage.
+ * ────────────────────────────────────────────────────────────────────── */
+
+body.stitch-home .navbar,
+body.stitch-home .theme-layout-navbar {
+  display: none !important;
+}
+
+body.stitch-home .main-wrapper {
+  padding-top: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
  * Glassmorphic navbar (Stitch: 20px blur, low-opacity border)
  * ────────────────────────────────────────────────────────────────────── */
 
@@ -158,6 +178,51 @@
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--ifm-toc-border-color);
+  background-color: rgba(12, 19, 34, 0.8);
+  height: 4rem;
+}
+
+[data-theme="light"] .navbar {
+  background-color: rgba(255, 255, 255, 0.72);
+}
+
+/* Logo: prepend a "waves" Material Symbol before "lake ts" wordmark */
+.navbar__title {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--ifm-color-content);
+  font-size: 1.5rem;
+}
+
+.navbar__title::before {
+  content: "waves";
+  font-family: "Material Symbols Outlined";
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--ifm-color-primary);
+  line-height: 1;
+}
+
+/* Nav link spacing + Stitch-style active state */
+.navbar__link {
+  font-weight: 500;
+  color: var(--ifm-color-content-secondary);
+  padding: 0.25rem 0.75rem;
+}
+
+.navbar__link--active,
+.navbar__link.navbar-link-docs:where([href*="/intro"], [href*="/guides"]),
+.navbar__link[href*="/reference"].navbar__link--active {
+  color: var(--ifm-color-primary);
+  font-weight: 700;
+}
+
+.navbar__items--right .navbar__link {
+  color: var(--ifm-color-content-secondary);
+  font-weight: 500;
 }
 
 .navbar__title,
@@ -212,37 +277,390 @@ code {
 }
 
 /* ──────────────────────────────────────────────────────────────────────
- * Sidebar & TOC — active-state left border highlight (Stitch ToC pattern)
+ * Doc-page chrome — match Stitch "Desktop API" reference design
  * ────────────────────────────────────────────────────────────────────── */
 
+/* Sidebar — Stitch uses 280px fixed sidebar with rounded-right pills for
+ * each nav item. The active item uses the secondary-container background.
+ * Each link gets a Material Symbol prefix keyed off its URL pattern.
+ */
+.theme-doc-sidebar-container {
+  border-right: 1px solid var(--ifm-toc-border-color);
+}
+
 .menu__link {
-  border-radius: 0.25rem;
+  border-radius: 0 9999px 9999px 0;
   font-weight: 500;
+  padding: 0.5rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+/* Material Symbols icon prefix on each sidebar link, keyed off href */
+.menu__link[href$="/intro"]::before { content: "waves"; }
+.menu__link[href$="/architecture-patterns"]::before { content: "schema"; }
+.menu__link[href*="/guides/getting-started"]::before { content: "rocket_launch"; }
+.menu__link[href*="/guides/lakebase-cdf-setup"]::before { content: "sync_alt"; }
+
+/* How It Works subpages — distinct icon per topic */
+.menu__link[href$="/guides/how-it-works/"]::before,
+.menu__link[href$="/guides/how-it-works"]::before { content: "explore"; }
+.menu__link[href*="/guides/how-it-works/chronotables"]::before { content: "layers"; }
+.menu__link[href*="/guides/how-it-works/time-series-functions"]::before { content: "function"; }
+.menu__link[href*="/guides/how-it-works/rollups"]::before { content: "account_tree"; }
+.menu__link[href*="/guides/how-it-works/compression-and-retention"]::before { content: "archive"; }
+.menu__link[href*="/guides/how-it-works/lakebase-cdf-internals"]::before { content: "hub"; }
+.menu__link[href$="/how-to/"]::before,
+.menu__link[href$="/how-to"]::before { content: "explore"; }
+.menu__link[href*="/how-to/rollups"]::before { content: "account_tree"; }
+.menu__link[href*="/how-to/last-value-cache"]::before { content: "bolt"; }
+.menu__link[href*="/how-to/bulk-ingest"]::before { content: "upload"; }
+.menu__link[href*="/how-to/alerts"]::before { content: "notifications_active"; }
+.menu__link[href*="/how-to/lifecycle"]::before { content: "schedule"; }
+.menu__link[href*="/how-to/monitoring"]::before { content: "monitoring"; }
+.menu__link[href*="/how-to/cardinality"]::before { content: "scatter_plot"; }
+.menu__link[href*="/how-to/export-to-uc"]::before { content: "cloud_upload"; }
+.menu__link[href*="/how-to/downsampling"]::before { content: "compress"; }
+/* Reference subpages — one icon per topic */
+.menu__link[href$="/reference/"]::before,
+.menu__link[href$="/reference"]::before { content: "menu_book"; }
+.menu__link[href*="/reference/chronotables"]::before { content: "layers"; }
+.menu__link[href*="/reference/time-series-functions"]::before { content: "function"; }
+.menu__link[href*="/reference/rollups"]::before { content: "account_tree"; }
+.menu__link[href*="/reference/lifecycle"]::before { content: "schedule"; }
+.menu__link[href*="/reference/lakebase-cdf"]::before { content: "hub"; }
+.menu__link[href*="/reference/multi-metric-tables"]::before { content: "table_chart"; }
+.menu__link[href*="/reference/last-value-cache"]::before { content: "bolt"; }
+.menu__link[href*="/reference/downsampling"]::before { content: "compress"; }
+.menu__link[href*="/reference/alerts"]::before { content: "notifications_active"; }
+.menu__link[href*="/reference/bulk-ingest"]::before { content: "upload"; }
+.menu__link[href*="/reference/monitoring"]::before { content: "monitoring"; }
+.menu__link[href*="/reference/unity-catalog"]::before { content: "cloud_done"; }
+.menu__link[href*="/reference/metadata-tables"]::before { content: "database"; }
+.menu__link[href*="/reference/workflow-jobs"]::before { content: "rule_settings"; }
+.menu__link[href$="/troubleshooting"]::before { content: "build"; }
+.menu__link[href$="/glossary"]::before { content: "menu_book"; }
+.menu__link[href*="/examples/sensor-reading-journey"]::before { content: "timeline"; }
+
+.menu__link::before {
+  font-family: "Material Symbols Outlined";
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+/* Categories (Guides / Reference) — uppercase tracked label per the Stitch
+ * "DOCUMENTATION" / "ADVANCED" section headers. Hide the collapse chevron
+ * since Stitch shows a flat hierarchy.
+ */
+.menu__list-item-collapsible > .menu__link[aria-expanded] {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+  opacity: 0.9;
+  cursor: default;
+  background: transparent !important;
+  padding-left: 1.25rem;
+  margin-top: 1rem;
+}
+
+/* Section headers don't get a Material Symbols ::before icon (their icons
+ * would be the same as section labels; we use the uppercase text instead). */
+.menu__list-item-collapsible > .menu__link[aria-expanded]::before {
+  display: none;
+}
+
+/* Style the expand/collapse caret consistently across all categories so
+ * How-to guides and How It Works show the same dropdown indicator as
+ * Overview and Getting Started. */
+.menu__caret {
+  background-image: none;
+  border-radius: 0.25rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ifm-color-content-secondary);
+  transition: background 120ms ease, color 120ms ease, transform 200ms ease;
+}
+
+.menu__caret:hover {
+  background: var(--ifm-color-emphasis-200);
+  color: var(--ifm-color-primary);
+}
+
+.menu__caret::before {
+  content: "expand_more";
+  font-family: "Material Symbols Outlined";
+  font-size: 1.25rem;
+  font-weight: 500;
+  background-image: none;
+}
+
+.menu__list-item--collapsed .menu__caret::before {
+  content: "chevron_right";
+}
+
+.menu__list-item-collapsible {
+  background: transparent !important;
 }
 
 .menu__link--active:not(.menu__link--sublist) {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 54, 33, 0.12) 0%,
-    transparent 100%
-  );
-  border-left: 2px solid var(--ifm-color-primary);
-  padding-left: calc(var(--ifm-menu-link-padding-horizontal) - 2px);
+  background: #00a7de;
+  color: #00374d;
+  font-weight: 700;
 }
 
-.table-of-contents__link--active {
-  font-weight: 600;
+[data-theme="dark"] .menu__link--active:not(.menu__link--sublist) {
+  background: #00a7de;
+  color: #00374d;
+}
+
+.menu__list-item-collapsible .menu__link--active {
+  background: transparent;
   color: var(--ifm-color-primary);
+}
+
+/* Sidebar section labels (the "DOCUMENTATION" / "ADVANCED" headers) */
+.menu__list .menu__list .menu__list-item-collapsible > .menu__link {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  color: var(--ifm-color-content-secondary);
+  opacity: 0.7;
+}
+
+/* Right-side TOC ("On this page") — Stitch styling */
+.theme-doc-toc-desktop {
+  border-left: none;
+  padding-left: 1rem;
+}
+
+.table-of-contents {
+  font-size: 0.875rem;
+  border-left: none;
+  padding-left: 0;
+}
+
+/* Override Docusaurus's default left-border on the TOC — we use our own
+ * per-link active border (see .table-of-contents__link rules below). */
+.table-of-contents__left-border {
+  border-left: none;
+}
+
+.table-of-contents::before {
+  content: "On this page";
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ifm-color-content-secondary);
+  margin-bottom: 1rem;
+  padding-left: 1rem;
 }
 
 .table-of-contents__link {
   border-left: 2px solid transparent;
-  padding-left: 0.5rem;
+  padding: 0.25rem 1rem;
   transition: border-color 120ms ease, color 120ms ease;
+  color: var(--ifm-color-content-secondary);
+  display: block;
+}
+
+.table-of-contents__link:hover {
+  color: var(--ifm-color-primary);
 }
 
 .table-of-contents__link--active {
+  font-weight: 700;
+  color: var(--ifm-color-primary);
   border-left-color: var(--ifm-color-primary);
+}
+
+/* The static "PRO TIP" callout was removed — it isn't relevant on every
+ * page and was crowding the auto-generated TOC. */
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Breadcrumbs — Stitch chevron separators, secondary color on active
+ * ────────────────────────────────────────────────────────────────────── */
+
+.theme-doc-breadcrumbs {
+  margin-bottom: 1.5rem;
+}
+
+.breadcrumbs {
+  font-size: 0.875rem;
+  align-items: center;
+}
+
+.breadcrumbs__item {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ifm-color-content-secondary);
+}
+
+.breadcrumbs__item:not(:last-child)::after {
+  content: "chevron_right";
+  font-family: "Material Symbols Outlined";
+  font-size: 1rem;
+  margin: 0 0.25rem;
+  color: var(--ifm-color-content-secondary);
+  vertical-align: middle;
+  /* Override Docusaurus's default ">" separator */
+  background-image: none;
+  width: auto;
+  height: auto;
+  opacity: 0.6;
+}
+
+.breadcrumbs__link {
+  color: var(--ifm-color-content-secondary);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.breadcrumbs__link:hover {
+  background: var(--ifm-color-emphasis-200);
+  color: var(--ifm-color-content);
+}
+
+.breadcrumbs__item--active .breadcrumbs__link {
+  background: transparent;
+  color: var(--ifm-color-secondary);
+  font-weight: 600;
+}
+
+/* Hide the home icon — Stitch breadcrumbs don't have one */
+.breadcrumbHomeIcon_YNFT,
+.breadcrumbHomeIcon {
+  display: none;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Code blocks on doc pages — Stitch utility-bar pattern
+ * Language label top-left, copy icon top-right, rounded-xl container
+ * ────────────────────────────────────────────────────────────────────── */
+
+.theme-code-block {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+[class*="codeBlockTitle"] {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--ifm-color-emphasis-100);
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  color: var(--ifm-color-content-secondary);
+}
+
+[class*="buttonGroup"] {
+  background: transparent;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Doc article content polish
+ * ────────────────────────────────────────────────────────────────────── */
+
+.markdown h1:first-child {
+  font-size: 2.5rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 1.5rem;
+}
+
+.markdown h2 {
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.markdown h2:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.markdown h3 {
+  font-size: 1.25rem;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Tables — Stitch uses bordered rounded tables with bg headers */
+.markdown table {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.markdown table thead {
+  background: var(--ifm-color-emphasis-100);
+}
+
+.markdown table th {
+  font-weight: 700;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.markdown table td,
+.markdown table th {
+  padding: 0.75rem 1rem;
+}
+
+/* Decorative gradients intentionally removed — the surface palette
+ * (#0c1322 / #141b2b / #191f2f / #232a3a) does the layering work. */
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Admonitions — Stitch "PostgreSQL Compatibility" callout pattern.
+ * Left border in the variant color, content uses primary-container tint.
+ * Affects all Docusaurus admonition kinds (note, tip, info, caution,
+ * danger) which render as .alert blocks.
+ * ────────────────────────────────────────────────────────────────────── */
+
+.theme-admonition,
+.alert {
+  border-left-width: 4px;
+  border-radius: 0 0.75rem 0.75rem 0;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 92, 77, 0.08);
+}
+
+.theme-admonition .admonitionHeading_node_modules-\@docusaurus-theme-classic-lib-theme-Admonition-Layout-styles-module,
+.theme-admonition [class*="admonitionHeading"] {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Doc page header polish — version chip pattern from refined Stitch API
+ * ────────────────────────────────────────────────────────────────────── */
+
+.markdown h1:first-child + p,
+.markdown h1:first-child + p:first-of-type {
+  font-size: 1.125rem;
+  line-height: 1.75;
+  color: var(--ifm-color-content-secondary);
+  margin-bottom: 2rem;
 }
 
 /* ──────────────────────────────────────────────────────────────────────
@@ -344,4 +762,238 @@ article a:not(.button):not(.card):hover {
 
 [data-theme="dark"] ::selection {
   background-color: rgba(255, 92, 77, 0.32);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Docs page polish — make the main article column feel like a
+ * Stitch "content card" floating on the surface, with a display-sized
+ * lead H1 and brand-mapped section dividers.
+ * ────────────────────────────────────────────────────────────────────── */
+
+/* Article column blends with the page surface so the docs feel like one
+ * continuous dark canvas, not a card floating on a grey backdrop. */
+[data-theme="dark"] .theme-doc-markdown {
+  background: transparent;
+  padding: 0.5rem 0 2rem;
+}
+
+/* Surface the sidebar + main page columns in the Stitch palette so the
+ * whole page reads as dark navy, not generic grey. */
+html[data-theme="dark"] body,
+html[data-theme="dark"] .main-wrapper,
+html[data-theme="dark"] [class*="docPage"],
+html[data-theme="dark"] [class*="docMainContainer"] {
+  background-color: var(--lakets-surface);
+}
+
+html[data-theme="dark"] .theme-doc-sidebar-container {
+  background-color: var(--lakets-surface-container-low);
+}
+
+.markdown h1:first-child {
+  font-family: var(--ifm-heading-font-family);
+  font-size: 2.5rem;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+  color: var(--ifm-color-content);
+}
+
+/* The first paragraph after H1 = doc lede */
+.markdown h1:first-child + p {
+  font-size: 1.25rem;
+  line-height: 1.6;
+  color: var(--ifm-color-content-secondary);
+  margin-bottom: 2.5rem;
+  font-weight: 400;
+}
+
+/* H2 — section markers with a small primary square + tighter top spacing */
+.markdown h2 {
+  position: relative;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 3rem;
+  margin-bottom: 1rem;
+  padding-top: 2rem;
+  padding-left: 1rem;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.markdown h2::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2.5rem;
+  width: 4px;
+  height: 1.5rem;
+  background: var(--ifm-color-primary);
+  border-radius: 2px;
+}
+
+.markdown h2:first-of-type {
+  border-top: none;
+  padding-top: 0.5rem;
+}
+
+.markdown h2:first-of-type::before {
+  top: 0.75rem;
+}
+
+/* H3 — chip-style mono prefix for sub-sections */
+.markdown h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Bullet lists — primary marker color */
+.markdown ul > li::marker {
+  color: var(--ifm-color-primary);
+}
+
+[data-theme="dark"] .markdown ul > li::marker {
+  color: var(--ifm-color-primary);
+}
+
+/* Tables — header row uses surface-container-high for clean elevation */
+[data-theme="dark"] .markdown table thead {
+  background: var(--lakets-surface-container-high);
+}
+
+[data-theme="dark"] .markdown table th {
+  color: var(--ifm-color-primary);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+
+[data-theme="dark"] .markdown table tbody tr:hover {
+  background: rgba(255, 180, 170, 0.04);
+}
+
+/* Inline code chip — Stitch "data-bit" with primary text on dim bg */
+[data-theme="dark"] :not(pre) > code {
+  background: rgba(255, 92, 77, 0.12);
+  color: var(--ifm-color-primary);
+  border: 1px solid rgba(255, 92, 77, 0.2);
+  font-size: 0.875em;
+}
+
+/* Code block content area — deeper navy than the page bg for elevation */
+[data-theme="dark"] .theme-code-block {
+  background: var(--lakets-surface-container-low);
+  border-color: rgba(255, 180, 170, 0.12);
+}
+
+[data-theme="dark"] .theme-code-block pre {
+  background: transparent !important;
+}
+
+/* Admonitions — variant-specific brand tints */
+[data-theme="dark"] .theme-admonition-tip,
+[data-theme="dark"] .alert--success {
+  background: rgba(121, 209, 255, 0.06);
+  border-left-color: var(--ifm-color-secondary);
+}
+[data-theme="dark"] .theme-admonition-tip [class*="admonitionHeading"],
+[data-theme="dark"] .alert--success [class*="admonitionHeading"] {
+  color: var(--ifm-color-secondary);
+}
+
+[data-theme="dark"] .theme-admonition-info,
+[data-theme="dark"] .alert--info {
+  background: rgba(192, 193, 255, 0.06);
+  border-left-color: #c0c1ff;
+}
+[data-theme="dark"] .theme-admonition-info [class*="admonitionHeading"],
+[data-theme="dark"] .alert--info [class*="admonitionHeading"] {
+  color: #c0c1ff;
+}
+
+[data-theme="dark"] .theme-admonition-caution,
+[data-theme="dark"] .theme-admonition-warning,
+[data-theme="dark"] .alert--warning {
+  background: rgba(251, 191, 36, 0.07);
+  border-left-color: #fbbf24;
+}
+[data-theme="dark"] .theme-admonition-caution [class*="admonitionHeading"],
+[data-theme="dark"] .theme-admonition-warning [class*="admonitionHeading"],
+[data-theme="dark"] .alert--warning [class*="admonitionHeading"] {
+  color: #fbbf24;
+}
+
+[data-theme="dark"] .theme-admonition-danger,
+[data-theme="dark"] .alert--danger {
+  background: rgba(255, 180, 171, 0.07);
+  border-left-color: var(--ifm-color-danger);
+}
+
+/* Pagination buttons — Stitch card style with primary hover glow */
+[data-theme="dark"] .pagination-nav__link {
+  background: var(--lakets-surface-container-low);
+  border-color: rgba(255, 180, 170, 0.12);
+}
+
+[data-theme="dark"] .pagination-nav__link:hover {
+  border-color: var(--ifm-color-primary);
+  box-shadow: 0 8px 24px rgba(255, 92, 77, 0.08);
+}
+
+.pagination-nav__sublabel {
+  color: var(--ifm-color-content-secondary);
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.pagination-nav__label {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Last updated + Edit-this-page footer row — Stitch label-sm aesthetic */
+.theme-last-updated,
+.theme-edit-this-page,
+[class*="lastUpdated"] {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.75rem;
+  color: var(--ifm-color-content-secondary);
+  letter-spacing: 0.04em;
+}
+
+/* Mermaid diagrams — match Stitch surface treatment + readable font size.
+ * Mermaid's default node labels are 12–14px which is too small at the
+ * widths Docusaurus renders them. Bump everything to 16px+ via SVG. */
+.docusaurus-mermaid-container,
+div[class*="mermaid"] {
+  border-radius: 0.75rem;
+  background: var(--lakets-surface-container-low);
+  border: 1px solid rgba(255, 180, 170, 0.1);
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+}
+
+/* Force the Mermaid SVG to use the whole container width so the diagram
+ * scales up instead of rendering tiny in the middle of a wide column. */
+.docusaurus-mermaid-container svg,
+div[class*="mermaid"] svg {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+}
+
+/* Mermaid font sizes are set in docusaurus.config.ts themeVariables so
+ * the diagrams are laid out with the larger text from the start (CSS-only
+ * overrides cause label overflow because Mermaid pre-computes box widths
+ * from the rendered font). */
+
+[data-theme="dark"] .docusaurus-mermaid-container svg,
+[data-theme="dark"] div[class*="mermaid"] svg {
+  filter: brightness(1.05);
 }

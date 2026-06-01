@@ -1,42 +1,81 @@
 ---
-title: Getting Started
-sidebar_label: Getting Started
+title: Quickstart
+sidebar_label: Quickstart
 sidebar_position: 1
-description: Install LakeTS on a Lakebase instance, create your first ChronoTable, and run time series queries.
+description: Install LakeTS, create your first ChronoTable, and run your first time-series query in 5 minutes.
 ---
 
-# Getting Started with LakeTS
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-LakeTS is a time series toolkit for Databricks Lakebase. It adds automatic partitioning, time series functions, incremental rollups, compression, and retention to Lakebase's native PostgreSQL — all in pure SQL.
+# Quickstart
+
+Install LakeTS on a Lakebase instance, create a ChronoTable, run your first time-series query. The whole flow takes about five minutes.
 
 ## Prerequisites
 
 - A Databricks workspace with Lakebase enabled
-- A Lakebase instance (provisioned or autoscale)
+- A Lakebase **autoscale** instance running **PostgreSQL 17 or later** (LakeTS is not supported on provisioned instances or earlier Postgres versions)
 - A PostgreSQL client (`psql`, DBeaver, or any Postgres-compatible tool)
 
 ## 1. Install LakeTS
 
-Connect to your Lakebase instance and run the installer:
+Pick the install path that matches how you got the LakeTS code. All three paths produce the same end state.
+
+<Tabs groupId="install-method">
+<TabItem value="release" label="From a release artifact (recommended)" default>
+
+Download the signed single-file release, verify it, then run it against your Lakebase instance:
 
 ```bash
-# Option A: Single-file install (recommended)
-psql -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f dist/lakets.sql
+curl -LO https://github.com/databricks-solutions/lakets/releases/latest/download/lakets.sql
+curl -LO https://github.com/databricks-solutions/lakets/releases/latest/download/lakets.sql.sha256
+sha256sum -c lakets.sql.sha256
 
-# Option B: From source (all modules)
+psql -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f lakets.sql
+```
+
+</TabItem>
+<TabItem value="clone" label="From a git clone">
+
+Clone the repo and run the bundled single-file installer:
+
+```bash
+git clone https://github.com/databricks-solutions/lakets.git
+cd lakets
+
+psql -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f dist/lakets.sql
+```
+
+</TabItem>
+<TabItem value="source" label="From source (all modules)">
+
+If you want to install module-by-module (e.g. to skip optional modules), run the top-level installer that loads each `sql/NN_*.sql` file in order:
+
+```bash
+git clone https://github.com/databricks-solutions/lakets.git
+cd lakets
+
 psql -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f sql/99_install.sql
 ```
 
-Verify installation:
+</TabItem>
+</Tabs>
+
+Verify the install:
+
 ```sql
-SELECT version, installed_at, modules FROM lakets._version ORDER BY installed_at DESC LIMIT 1;
+SELECT version, installed_at, modules FROM lakets._version
+ORDER BY installed_at DESC LIMIT 1;
 ```
 
-## 2. Create Your First ChronoTable
+## 2. Create your first ChronoTable
 
 A **ChronoTable** is a time-partitioned table — LakeTS's core abstraction for time series data.
 
-**Option A: Single-metric table** (simple):
+<Tabs groupId="table-shape">
+<TabItem value="single" label="Single-metric" default>
+
 ```sql
 CREATE TABLE metrics (
     time    TIMESTAMPTZ NOT NULL,
@@ -44,22 +83,25 @@ CREATE TABLE metrics (
     cpu     DOUBLE PRECISION,
     memory  DOUBLE PRECISION
 );
+
 INSERT INTO metrics
 SELECT now() - (i || ' minutes')::interval, 'sensor_' || (i % 10),
        50 + 30 * sin(i::float / 100), 40 + 20 * cos(i::float / 200)
 FROM generate_series(1, 10000) AS s(i);
 
--- Convert to ChronoTable with 1-day partitions
+-- Convert to a ChronoTable with 1-day partitions
 SELECT lakets.create_chronotable('metrics', 'time', '1 day');
 ```
 
-**Option B: Multi-metric table** (InfluxDB-style with tags + fields):
+</TabItem>
+<TabItem value="multi" label="Multi-metric (tags + fields)">
+
 ```sql
--- Creates table + ChronoTable + composite index + BRIN index in one call
+-- Creates the table + ChronoTable + composite + BRIN indexes in one call
 SELECT lakets.create_metric_table(
     'system_metrics',
-    tag_columns   := ARRAY['host', 'region', 'env'],
-    field_columns := ARRAY['cpu', 'memory', 'disk_io'],
+    tag_columns    := ARRAY['host', 'region', 'env'],
+    field_columns  := ARRAY['cpu', 'memory', 'disk_io'],
     chunk_interval := '1 day'
 );
 
@@ -67,19 +109,24 @@ INSERT INTO system_metrics (time, host, region, env, cpu, memory, disk_io)
 VALUES (now(), 'web-01', 'us-west-2', 'prod', 72.5, 4096, 234.5);
 ```
 
+</TabItem>
+</Tabs>
+
 Check the partitions:
+
 ```sql
 SELECT * FROM lakets.show_chunks('metrics');
 ```
 
-## 3. Query with Time Series Functions
+## 3. Run your first time-series query
 
-**Time bucketing** - aggregate by arbitrary intervals:
+Aggregate by arbitrary intervals with `time_bucket`:
+
 ```sql
 SELECT
     lakets.time_bucket('1 hour'::interval, time) AS hour,
     device,
-    avg(cpu) AS avg_cpu,
+    avg(cpu)    AS avg_cpu,
     max(memory) AS max_mem
 FROM metrics
 WHERE time > now() - interval '1 day'
@@ -87,273 +134,55 @@ GROUP BY 1, 2
 ORDER BY 1 DESC;
 ```
 
-**First and last values**:
+Get the first and last reading per device with `lakets.first` / `lakets.last`:
+
 ```sql
 SELECT
     device,
     lakets.first(cpu, time) AS first_reading,
-    lakets.last(cpu, time) AS latest_reading
+    lakets.last(cpu, time)  AS latest_reading
 FROM metrics
 GROUP BY device;
 ```
 
-**Gap-filled time series** (fill missing hours):
-```sql
-WITH buckets AS (
-    SELECT b FROM lakets.time_bucket_gapfill(
-        '1 hour'::interval,
-        now() - interval '1 day',
-        now()
-    ) b
-),
-hourly AS (
-    SELECT lakets.time_bucket('1 hour'::interval, time) AS bucket,
-           avg(cpu) AS avg_cpu
-    FROM metrics WHERE device = 'sensor_0'
-    GROUP BY 1
-)
-SELECT
-    b.b AS hour,
-    lakets.locf(h.avg_cpu, LAG(h.avg_cpu) OVER (ORDER BY b.b)) AS cpu_filled
-FROM buckets b
-LEFT JOIN hourly h ON b.b = h.bucket
-ORDER BY b.b;
-```
+That's the core LakeTS loop: a single table call turned a regular Postgres table into a time-partitioned ChronoTable, and standard SQL queries now use time-aware functions automatically.
 
-**Rate of change**:
-```sql
-SELECT time, cpu,
-       lakets.delta(cpu, LAG(cpu) OVER (ORDER BY time)) AS change,
-       lakets.rate(cpu, LAG(cpu) OVER (ORDER BY time),
-                   time, LAG(time) OVER (ORDER BY time)) AS rate_per_sec
-FROM metrics
-WHERE device = 'sensor_0'
-ORDER BY time DESC
-LIMIT 10;
-```
+## What's next
 
-## 4. Set Up RollUps (Incremental Aggregates)
+A typical LakeTS deployment progresses through three phases. Work through them in order; each step uses the work from the previous step.
 
-Pre-compute hourly rollups that refresh incrementally (only dirty buckets are recomputed):
+### Phase 1 — model your data
 
-```sql
--- Create a RollUp (incremental by default)
-SELECT lakets.create_rollup(
-    'metrics_hourly',
-    $$SELECT lakets.time_bucket('1 hour'::interval, time) AS bucket,
-             count(*) AS cnt,
-             round(avg(cpu)::numeric, 2) AS avg_cpu,
-             round(avg(memory)::numeric, 2) AS avg_mem
-      FROM metrics GROUP BY 1$$,
-    '1 hour',
-    'metrics'
-);
+You already created your first ChronoTable above. Before touching anything else, finalize the table shape:
 
--- Query pre-computed data (fast!)
-SELECT * FROM _rollup_metrics_hourly ORDER BY bucket DESC LIMIT 10;
+- If your writes carry tags + fields (host, region, env, cpu, memory), use [`create_metric_table`](../reference/multi-metric-tables.md) for a multi-metric ChronoTable
+- Confirm tag cardinality is sane — see [Manage tag cardinality](../how-to/cardinality.md) before you scale ingest
+- Pick a chunk interval that matches your retention shape (most workloads land on `1 day`)
 
--- Add a real-time view (RollUp Table + fresh data combined)
-SELECT lakets.create_rollup_view('metrics_hourly',
-    $$SELECT lakets.time_bucket('1 hour'::interval, time) AS bucket,
-             count(*) AS cnt,
-             round(avg(cpu)::numeric, 2) AS avg_cpu,
-             round(avg(memory)::numeric, 2) AS avg_mem
-      FROM metrics
-      WHERE time > lakets._rollup_watermark('metrics_hourly')
-      GROUP BY 1$$);
+### Phase 2 — decide where data lives over time
 
--- Always-fresh results
-SELECT * FROM _rollup_rt_metrics_hourly ORDER BY bucket DESC LIMIT 10;
+This is the most important step and the easiest one to skip. Choose retention and tiering policies *before* you accumulate data:
 
--- Incremental refresh (only processes new/dirty buckets — not the entire dataset)
-SELECT lakets.refresh_rollup('metrics_hourly');
--- Returns: TRUE (refreshed) or FALSE (skipped due to refresh_lag)
+- **Hot only** — keep everything in Lakebase. Add a [retention policy](../how-to/lifecycle.md#retention--drop-old-chunks-entirely) so old chunks drop.
+- **Hot + cold** — recent data in Lakebase, history in Unity Catalog. Set up [Lakebase CDF](./lakebase-cdf-setup.md) for replication and a [tiered retention policy](../how-to/lifecycle.md#tiered-retention--tier-then-drop) for the lifecycle.
+- **Long horizons** — add [downsampling pipelines](../how-to/downsampling.md) for multi-year aggregates.
 
--- Optional: enable invalidation tracking for historical corrections
-SELECT lakets.enable_rollup_invalidation('metrics_hourly');
-```
+### Phase 3 — build your read patterns
 
-## 5. RollUp Dependencies (DAG Cascade)
+Now you can think about how the application or dashboard reads the data:
 
-Build hierarchical RollUps that refresh in the correct order:
+- **Dashboards over recent data** — define [RollUps](../how-to/rollups.md) so dashboards don't re-scan raw rows
+- **"What's the current value?" widgets** — turn on the [Last Value Cache](../how-to/last-value-cache.md) for sub-10ms reads
+- **Long-window queries** — use the cold tier through Lakehouse Federation
+- **Real-time alerts** — add [threshold and deadman alerts](../how-to/alerts.md)
+- **High-throughput writes** — use [`ingest_batch`](../how-to/bulk-ingest.md) instead of per-row inserts
+- **Cross-team analytics** — [sync RollUps to Unity Catalog](../how-to/export-to-uc.md) via Lakebase CDF so Spark, BI, and ML can read them
+- **Observability of LakeTS itself** — see [Monitoring](../how-to/monitoring.md)
 
-```sql
--- Create a daily RollUp that depends on the hourly one
-SELECT lakets.create_rollup(
-    'metrics_daily',
-    $$SELECT lakets.time_bucket('1 day'::interval, bucket) AS bucket,
-             sum(cnt) AS cnt,
-             round(avg(avg_cpu)::numeric, 2) AS avg_cpu,
-             round(avg(avg_mem)::numeric, 2) AS avg_mem
-      FROM _rollup_metrics_hourly GROUP BY 1$$,
-    '1 day',
-    'metrics',
-    p_depends_on := ARRAY['metrics_hourly']
-);
+### Reference + further reading
 
--- Refresh all dependencies in topological order
-SELECT * FROM lakets.refresh_rollup_cascade('metrics_daily');
--- rollup_name      | refreshed | refresh_ms
--- metrics_hourly   | true      | 12.5
--- metrics_daily    | true      | 8.3
-
--- View the dependency graph
-SELECT * FROM lakets.show_rollup_dag();
-```
-
-## 6. Export RollUps to Delta Lake
-
-Make RollUp Tables available to Spark, ML pipelines, and BI tools:
-
-```sql
--- Enable export to Delta
-SELECT lakets.enable_rollup_export(
-    'metrics_hourly',
-    'main.lakets_rollups.metrics_hourly',  -- Delta table path
-    'incremental'                           -- 'full' or 'incremental'
-);
-
--- Check export status
-SELECT * FROM lakets.show_rollup_exports();
-
--- Disable export
-SELECT lakets.disable_rollup_export('metrics_hourly');
-```
-
-The actual export is performed by the `rollup_export.py` Databricks Job, which reads export-enabled RollUps and writes to Delta.
-
-## 7. Configure Data Lifecycle
-
-**Compression** (tier old data to Delta Lake):
-```sql
-SELECT lakets.add_compression_policy('metrics', '7 days');
-```
-
-**Retention** (drop old partitions):
-```sql
-SELECT lakets.add_retention_policy('metrics', '30 days');
-```
-
-**Tiered retention** (tier then drop):
-```sql
-SELECT lakets.add_tiered_retention_policy('metrics', '7 days', '90 days');
-```
-
-## 8. Monitor Your System
-
-```sql
--- All operational metrics
-SELECT * FROM lakets.lakets_metrics();
-
--- Chunk health per ChronoTable
-SELECT * FROM lakets.chunk_health();
-
--- Top queries
-SELECT * FROM lakets.query_stats(10);
-```
-
-## 9. Last Value Cache (Sub-10ms Latest State)
-
-Enable a trigger-maintained cache for instant "what's the current value?" queries:
-
-```sql
--- Enable LVC on your ChronoTable
-SELECT lakets.enable_lvc(
-    'system_metrics',
-    key_columns   := ARRAY['host'],
-    value_columns := ARRAY['cpu', 'memory']
-);
-
--- Insert data (LVC auto-updates via trigger)
-INSERT INTO system_metrics VALUES (now(), 'web-01', 'us-west-2', 'prod', 85.0, 7000, 500);
-
--- Query latest values (reads cache table — sub-10ms)
-SELECT * FROM _lvc_system_metrics;
--- host   | cpu  | memory | last_updated
--- web-01 | 85.0 | 7000   | 2026-03-25 17:30:01
-
--- Cache stats
-SELECT * FROM lakets.lvc_stats();
-```
-
-## 10. Cardinality Management
-
-Monitor tag cardinality to prevent label explosion:
-
-```sql
--- Distinct values per tag column
-SELECT * FROM lakets.cardinality_stats('system_metrics');
--- column | distinct_values | total_rows | pct_of_rows
--- host   | 150             | 100000     | 0.150%
--- region | 5               | 100000     | 0.005%
-
--- Warn if combined cardinality exceeds threshold
-SELECT * FROM lakets.cardinality_check('system_metrics', 10000);
--- status | combined_cardinality | max_allowed
--- OK     | 750                  | 10000
-```
-
-## 11. Alert Rules (Hot Data)
-
-SQL-native alerting on recent data:
-
-```sql
--- Threshold alert: find hosts with CPU > 90
-SELECT * FROM lakets.alert_check(
-    'high_cpu',
-    $$SELECT host, max(cpu) as peak
-      FROM system_metrics
-      WHERE time > now() - interval '5 minutes'
-      GROUP BY host HAVING max(cpu) > 90$$,
-    'critical'
-);
-
--- Deadman alert: hosts with no data for 5 minutes
-SELECT * FROM lakets.alert_deadman(
-    'stale_hosts', 'system_metrics', 'host', '5 minutes'
-);
-```
-
-## 12. Bulk Ingest
-
-Insert data in batches from edge devices or protocol adapters:
-
-```sql
-SELECT lakets.ingest_batch('system_metrics', '[
-    {"time": "2026-03-25T17:00:00Z", "host": "edge-01", "region": "eu-1", "env": "prod", "cpu": 55.5, "memory": 2048, "disk_io": 100},
-    {"time": "2026-03-25T17:00:01Z", "host": "edge-02", "region": "eu-1", "env": "prod", "cpu": 66.6, "memory": 4096, "disk_io": 200}
-]'::JSONB);
-```
-
-## 13. Downsampling Pipeline (Metadata)
-
-Register multi-resolution rollup pipelines (executed by Databricks Jobs):
-
-```sql
-SELECT lakets.create_downsample_pipeline(
-    'metrics_rollups', 'system_metrics',
-    ARRAY['1 minute', '1 hour', '1 day']::INTERVAL[],
-    ARRAY['30 days', '1 year', '100 years']::INTERVAL[],
-    ARRAY['avg(cpu)', 'max(memory)'],
-    ARRAY['host', 'region']
-);
-
--- Find best resolution for a given time range
-SELECT * FROM lakets.query_auto_resolution('metrics_rollups', now() - '30 days');
-```
-
-## 14. Enable Lakehouse Sync (Optional)
-
-Sync data to Delta Lake via CDC for analytics:
-```sql
-SELECT lakets.enable_sync('metrics');
-```
-
-See [Lakehouse Sync Setup](./lakehouse-sync-setup.md) for full setup instructions.
-
-## Next Steps
-
-- [API Reference](../reference/api-reference.md) — public function signatures by area.
-- [Function Reference](../reference/function-reference.md) — complete catalog of all 77 functions, aggregates, triggers, and metadata tables.
-- [How It Works](./how-it-works.md) — internals of ChronoTables, RollUps, and Lakehouse Sync.
-- Deploy the [Databricks workflows](https://github.com/databricks-solutions/lakets/blob/main/databricks/bundles/databricks.yml) for automated partition management, compression, retention, and aggregate refresh.
+- [How It Works](./how-it-works/index.md) — the internals of ChronoTables, RollUps, and Lakebase CDF
+- [Reference](../reference/index.md) — full catalog of 73 functions, 2 aggregates, 6 triggers, 9 metadata tables — organized by topic
+- [Life of a sensor reading](../examples/sensor-reading-journey.md) — end-to-end worked example
+- [Troubleshooting](../troubleshooting.md) — when something doesn't behave the way you expect
+- [Databricks workflows](https://github.com/databricks-solutions/lakets/blob/main/databricks/bundles/databricks.yml) — automated partition management, compression, retention, and aggregate refresh

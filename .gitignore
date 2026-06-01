@@ -1,18 +1,23 @@
 # Claude Code project instructions (local only)
 CLAUDE.md
 
-# Design docs — PRDs, plans, requirements (internal only)
-docs/design/
+# Internal docs (PRDs, design, superpowers specs/plans) — local-only, kept in .local/docs/
+/docs/
 
-# Diagrams, demo, scripts, and benchmarks (internal only)
-diagrams/
+# Local-only scratch + internal dirs, consolidated here — never commit.
+# Holds: *_PLAN.md scratch notes, animations/ (Remotion source), benchmarks/,
+# diagrams/, presentations/, scripts/.
+/.local/
+
+# Backstop: any stray scratch planning markdown left at repo root (move it to .local/)
+/*_PLAN.md
+
+# Internal-only dirs kept at repo root (referenced by tracked config/docs/README)
 demo/
-scripts/
-benchmarks/
 grafana/
 
-# Presentations — large binaries, store locally only
-presentations/
+# Local website dev/debug helper scripts (not part of the site build)
+website/scripts/
 
 # Generated test reports
 tests/TEST_REPORT.md
@@ -22,6 +27,10 @@ lakets/
 
 # Build output
 dist/
+
+# Node modules — match directory AND symlink at any level
+# (website/.gitignore's "node_modules/" trailing slash misses symlinks)
+node_modules
 
 # macOS
 .DS_Store

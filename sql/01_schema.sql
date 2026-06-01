@@ -12,6 +12,10 @@
 -- Full parameterization is planned for v0.3.0 (see docs/design/multi-tenant-namespacing.md).
 -- =============================================================================
 
+-- Dedicated, partition-free schema for CDF shadow tables.
+-- CDF is enabled only on this schema; partitioned ChronoTable parents stay in public.
+CREATE SCHEMA IF NOT EXISTS lakets_cdf;
+
 -- ---------------------------------------------------------------------------
 -- ChronoTable Registry: tracks all tables converted to time-partitioned tables
 -- ---------------------------------------------------------------------------
@@ -80,13 +84,11 @@ CREATE TABLE IF NOT EXISTS lakets._rollup_registry (
     rollup_table          TEXT NOT NULL,
     realtime_view         TEXT,
     bucket_interval       INTERVAL NOT NULL,
-    refresh_mode          TEXT NOT NULL DEFAULT 'incremental',
     refresh_lag           INTERVAL DEFAULT '1 hour',
     watermark             TIMESTAMPTZ,
     query_text            TEXT NOT NULL,
     last_refreshed_at     TIMESTAMPTZ,
-    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT valid_refresh_mode CHECK (refresh_mode IN ('full', 'incremental'))
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ---------------------------------------------------------------------------
@@ -155,10 +157,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_chunk_metadata_chunk_name
 CREATE INDEX IF NOT EXISTS idx_policy_registry_ct_type
     ON lakets._policy_registry(chronotable_id, policy_type) WHERE enabled = TRUE;
 
+-- Migration: drop legacy refresh_mode (auto-drops valid_refresh_mode CHECK and the old
+-- partial index that referenced it). No-op on fresh installs.
+ALTER TABLE lakets._rollup_registry DROP COLUMN IF EXISTS refresh_mode;
+
 -- FK index on _rollup_registry (scanned on every data write via invalidation trigger)
 CREATE INDEX IF NOT EXISTS idx_rollup_registry_source_ct
-    ON lakets._rollup_registry(source_chronotable_id, refresh_mode)
-    WHERE refresh_mode = 'incremental';
+    ON lakets._rollup_registry(source_chronotable_id);
 
 -- ---------------------------------------------------------------------------
 -- _resolve_partition_parent: Resolves a partition's parent table name.

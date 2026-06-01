@@ -48,7 +48,7 @@ BEGIN
     RETURN QUERY
     SELECT 'lakets_rollup_watermark_lag_seconds'::TEXT,
            EXTRACT(EPOCH FROM (now() - r.watermark))::DOUBLE PRECISION,
-           jsonb_build_object('rollup', r.name, 'refresh_mode', r.refresh_mode)
+           jsonb_build_object('rollup', r.name)
     FROM lakets._rollup_registry r
     WHERE r.watermark IS NOT NULL;
 
