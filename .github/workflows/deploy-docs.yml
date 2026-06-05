@@ -49,6 +49,12 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Build site
+        # GitHub Pages serves this project site under /lakets/, so the build
+        # must emit assets with that baseUrl (the config defaults to "/" for
+        # local/preview builds). Without these, every asset 404s on Pages.
+        env:
+          DOCS_URL: https://databricks-solutions.github.io
+          DOCS_BASE_URL: /lakets/
         run: npm run build
 
       - name: Upload Pages artifact

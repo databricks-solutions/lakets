@@ -7,8 +7,8 @@
     "sync:changelog": "node sync-changelog.mjs",
     "prestart": "node sync-changelog.mjs",
     "prebuild": "node sync-changelog.mjs",
-    "start": "docusaurus start",
-    "build": "docusaurus build",
+    "start": "node sync-changelog.mjs && docusaurus start",
+    "build": "node sync-changelog.mjs && docusaurus build",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve",
     "typecheck": "tsc --noEmit"
