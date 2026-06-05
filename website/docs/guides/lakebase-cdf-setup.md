@@ -16,7 +16,7 @@ Lakebase CDF streams data from Lakebase to a Unity Catalog Managed Table via CDC
 ## Prerequisites
 
 - A Databricks workspace with Lakebase enabled
-- A Lakebase **autoscale** instance running **PostgreSQL 16 or later**
+- A Lakebase **autoscale** instance running **PostgreSQL 17 or later**
 - LakeTS installed on that instance ([Quickstart](./getting-started.md))
 - At least one ChronoTable to sync
 

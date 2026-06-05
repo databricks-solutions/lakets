@@ -49,4 +49,4 @@ Every LakeTS function, custom aggregate, trigger, and metadata table — grouped
 | Schema utilities | 1 | — | — |
 | **Total** | **69** | **2** | **6** |
 
-All objects in the `lakets` schema. PostgreSQL 16+ required (Lakebase default). No custom extensions.
+All objects in the `lakets` schema. PostgreSQL 17+ required (Lakebase default). No custom extensions.

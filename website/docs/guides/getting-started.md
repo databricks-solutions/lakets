@@ -15,7 +15,7 @@ Install LakeTS on a Lakebase instance, create a ChronoTable, run your first time
 ## Prerequisites
 
 - A Databricks workspace with Lakebase enabled
-- A Lakebase **autoscale** instance running **PostgreSQL 16 or later** (LakeTS is not supported on provisioned instances or earlier Postgres versions)
+- A Lakebase **autoscale** instance running **PostgreSQL 17 or later** (LakeTS is not supported on provisioned instances or earlier Postgres versions)
 - A PostgreSQL client (`psql`, DBeaver, or any Postgres-compatible tool)
 
 ## 1. Install LakeTS

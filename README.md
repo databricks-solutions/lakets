@@ -1,11 +1,13 @@
 # LakeTS — Time-Series Toolkit for Databricks Lakebase
 
-[![CI](https://github.com/databricks-solutions/lakets/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/databricks-solutions/lakets/actions/workflows/ci.yml)
+[![CI Security & Quality Checks](https://github.com/databricks-solutions/lakets/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/databricks-solutions/lakets/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/databricks-solutions/lakets/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/databricks-solutions/lakets/actions/workflows/codeql.yml)
+[![Release](https://github.com/databricks-solutions/lakets/actions/workflows/release.yml/badge.svg)](https://github.com/databricks-solutions/lakets/actions/workflows/release.yml)
 [![Latest release](https://img.shields.io/github/v/release/databricks-solutions/lakets?sort=semver&label=release)](https://github.com/databricks-solutions/lakets/releases/latest)
 [![License](https://img.shields.io/badge/license-Databricks_DB_License-blue)](./LICENSE.md)
-[![PostgreSQL](https://img.shields.io/badge/postgres-16%2B-336791?logo=postgresql&logoColor=white)](#)
+[![PostgreSQL](https://img.shields.io/badge/postgres-17%2B-336791?logo=postgresql&logoColor=white)](#)
 
-LakeTS turns Databricks Lakebase (managed PostgreSQL 16) into a time-series database:
+LakeTS turns Databricks Lakebase (managed PostgreSQL 17) into a time-series database:
 automatic time-based partitioning, incremental RollUps, a last-value cache, policy-driven
 lifecycle tiering, and one-call sync to Unity Catalog via Lakebase CDF. It is pure PL/pgSQL —
 no custom extensions required — with optional Databricks jobs for scheduled maintenance.
@@ -51,11 +53,9 @@ Full documentation is published at **https://databricks-solutions.github.io/lake
 - **[How-to guides](https://databricks-solutions.github.io/lakets/how-to/)** — RollUps, lifecycle, LVC, alerts, bulk ingest, sync to UC, upgrading.
 - **[Reference](https://databricks-solutions.github.io/lakets/reference/)** — every function, aggregate, trigger, and metadata table.
 
-To preview the docs locally: `cd website && npm install && npm start`.
-
 ## Requirements
 
-- Databricks workspace with Lakebase (PostgreSQL 16+)
+- Databricks workspace with Lakebase (PostgreSQL 17+)
 - For scheduled maintenance jobs: a Databricks serverless runtime with `pip install -r requirements.txt`
 
 ## Contributing
