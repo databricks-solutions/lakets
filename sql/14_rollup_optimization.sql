@@ -1,9 +1,9 @@
 -- =============================================================================
 -- LakeTS RollUp Optimization — Modules 23–27
--- Smart refresh, batch processing, DAG orchestration, tier routing,
--- and bulk import invalidation.
+-- Smart refresh, batch processing, DAG orchestration, and bulk import
+-- invalidation.
 --
--- Requires: 00_schema.sql, 03_rollup.sql (applied first via 99_install.sql)
+-- Requires: 01_schema.sql, 04_rollup.sql (applied first via 99_install.sql)
 -- =============================================================================
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -19,8 +19,7 @@ ALTER TABLE lakets._rollup_registry
     ADD COLUMN IF NOT EXISTS bucket_column       TEXT    DEFAULT 'bucket',
     ADD COLUMN IF NOT EXISTS source_time_column  TEXT,
     ADD COLUMN IF NOT EXISTS predicate_injection BOOLEAN DEFAULT TRUE,
-    ADD COLUMN IF NOT EXISTS depends_on          INT[]   DEFAULT '{}',
-    ADD COLUMN IF NOT EXISTS cold_query_text     TEXT;
+    ADD COLUMN IF NOT EXISTS depends_on          INT[]   DEFAULT '{}';
 
 -- Path B removal: drop legacy RollUp->UC export columns (superseded by CDF sync)
 ALTER TABLE lakets._rollup_registry
@@ -493,32 +492,8 @@ $$;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- MODULE 26: Intelligent Tier Router
+-- MODULE 26: (reserved — covering index added under SCHEMA EXTENSIONS above)
 -- ═══════════════════════════════════════════════════════════════════════════════
-
--- ---------------------------------------------------------------------------
--- _resolve_bucket_tier: Auto-detects whether a bucket's source data is in
--- the hot tier (Lakebase) or cold tier (Delta Lake) by checking chunk status.
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION lakets._resolve_bucket_tier(
-    p_chronotable_id  INT,
-    p_bucket_start    TIMESTAMPTZ
-)
-RETURNS TEXT
-LANGUAGE sql STABLE
-AS $$
-    SELECT CASE
-        WHEN cm.status = 'active' THEN 'hot'
-        WHEN cm.status = 'tiered' THEN 'cold'
-        ELSE 'hot'
-    END
-    FROM lakets._chunk_metadata cm
-    WHERE cm.chronotable_id = p_chronotable_id
-      AND p_bucket_start >= cm.range_start
-      AND p_bucket_start < cm.range_end
-    LIMIT 1;
-$$;
-
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- MODULE 27: Bulk Import Invalidation

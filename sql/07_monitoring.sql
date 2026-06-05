@@ -16,9 +16,9 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    -- Hypertable count
+    -- ChronoTable count
     RETURN QUERY
-    SELECT 'lakets_hypertables_total'::TEXT, count(*)::DOUBLE PRECISION, '{}'::JSONB
+    SELECT 'lakets_chronotables_total'::TEXT, count(*)::DOUBLE PRECISION, '{}'::JSONB
     FROM lakets._chronotable_registry;
 
     -- Total chunks by status
@@ -28,7 +28,7 @@ BEGIN
     FROM lakets._chunk_metadata cm
     GROUP BY cm.status;
 
-    -- Total row estimate per hypertable (from pg_stat)
+    -- Total row estimate per ChronoTable (from pg_stat)
     RETURN QUERY
     SELECT 'lakets_estimated_rows'::TEXT,
            COALESCE(s.n_live_tup, 0)::DOUBLE PRECISION,
@@ -82,7 +82,7 @@ BEGIN
     JOIN lakets._rollup_registry r ON il.rollup_id = r.id
     GROUP BY r.name, il.tier;
 
-    -- Sync status per hypertable
+    -- Sync status per ChronoTable
     RETURN QUERY
     SELECT 'lakets_sync_enabled'::TEXT,
            (CASE WHEN hr.sync_enabled THEN 1 ELSE 0 END)::DOUBLE PRECISION,
@@ -106,11 +106,14 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- chunk_health: Detailed per-hypertable chunk health report.
+-- chunk_health: Detailed per-ChronoTable chunk health report.
 -- ---------------------------------------------------------------------------
+-- DROP first: the leading result column was renamed to `chronotable`, and
+-- CREATE OR REPLACE cannot change an existing function's OUT parameters.
+DROP FUNCTION IF EXISTS lakets.chunk_health();
 CREATE OR REPLACE FUNCTION lakets.chunk_health()
 RETURNS TABLE (
-    hypertable TEXT,
+    chronotable TEXT,
     total_chunks BIGINT,
     active_chunks BIGINT,
     tiered_chunks BIGINT,

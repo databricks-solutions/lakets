@@ -1,0 +1,71 @@
+name: Question
+description: Ask a usage or support question about LakeTS
+title: "question: "
+labels: ["question", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For open-ended discussion or ideas, prefer
+        [Discussions](https://github.com/databricks-solutions/lakets/discussions).
+        Use this template when you have a concrete usage or support question.
+  - type: input
+    id: lakets-version
+    attributes:
+      label: LakeTS version
+      description: Run `SELECT version FROM lakets._version ORDER BY installed_at DESC LIMIT 1;`
+      placeholder: "v0.1.2"
+    validations:
+      required: true
+  - type: input
+    id: postgres-version
+    attributes:
+      label: PostgreSQL / Lakebase version
+      description: Run `SELECT version();`
+      placeholder: "PostgreSQL 16.12 on Lakebase"
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature area
+      description: Which part of LakeTS is your question about?
+      options:
+        - ChronoTables
+        - Time-series functions
+        - RollUps
+        - Tiering & retention
+        - Lakebase CDF sync
+        - Last Value Cache
+        - Bulk ingest
+        - Alerts
+        - Monitoring
+        - Databricks workflow jobs
+        - Docs
+        - Other / unsure
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What are you trying to do, and what's unclear or not working as expected?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Relevant SQL or context
+      description: Paste the SQL you ran and any output. This makes the question far easier to answer.
+      render: sql
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched existing issues, Discussions, and the docs first.
+          required: true
+        - label: This isn't a security report (those go to the private advisory link).
+          required: true

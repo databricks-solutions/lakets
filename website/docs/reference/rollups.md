@@ -9,7 +9,7 @@ description: Functions for the incremental RollUp engine — creation, refresh, 
 
 RollUps are pre-computed aggregation tables with **incremental refresh** — only dirty buckets are recomputed, not the entire dataset. This is the core performance optimization that makes LakeTS practical at scale.
 
-**Key design choice**: separate RollUp tables (not materialized views) enable surgical per-bucket refresh, DAG-based cascade refresh, and hot/cold tier routing.
+**Key design choice**: separate RollUp tables (not materialized views) enable surgical per-bucket refresh and DAG-based cascade refresh.
 
 ## `create_rollup(p_name, p_query, p_bucket_interval, p_source_table, p_source_schema, p_depends_on)`
 
@@ -147,16 +147,15 @@ Installs (or removes) a per-row trigger on the source ChronoTable that marks dir
 
 **Returns**: `VOID`
 
-### `invalidate_rollup_range(p_name, p_from, p_to, p_tier)`
+### `invalidate_rollup_range(p_name, p_from, p_to)`
 
-Manually marks a time range as dirty. Use after bulk `COPY` operations (which bypass row-level triggers).
+Manually marks a time range as dirty so the next refresh recomputes it. Use after a bulk `COPY` (which bypasses row-level triggers) or a correction to historical data still resident in Lakebase. Buckets whose source partition has been dropped are skipped — they cannot be recomputed, so the RollUp keeps its last value.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `p_name` | TEXT | — | RollUp name |
 | `p_from` | TIMESTAMPTZ | — | Start of dirty range |
 | `p_to` | TIMESTAMPTZ | — | End of dirty range |
-| `p_tier` | TEXT | `NULL` | `'hot'`, `'cold'`, or `NULL` (auto-detect from chunk metadata) |
 
 **Returns**: `INT` — number of bucket entries created in the invalidation log
 
@@ -173,11 +172,11 @@ SELECT lakets.invalidate_rollup_range(
 
 Lists all registered RollUps with their configuration and status.
 
-**Returns**: TABLE with `name`, `rollup_table`, `realtime_view`, `bucket_interval`, `refresh_lag`, `watermark`, `last_refreshed_at`, `source_table`, `bucket_column`, `depends_on`.
+**Returns**: TABLE with `name`, `rollup_table`, `realtime_view`, `bucket_interval`, `refresh_lag`, `watermark`, `last_refreshed_at`, `source_table`, `bucket_column`, `depends_on`. The `depends_on` column is `INT[]` — the raw dependency RollUp **IDs** from the registry. Use `show_rollup_dag()` for the dependencies resolved to names.
 
 ### `show_rollup_dag()`
 
-Human-readable DAG visualization showing dependency relationships and refresh order.
+Human-readable DAG visualization showing dependency relationships and refresh order. `depends_on_names` resolves the dependency IDs to RollUp names.
 
 **Returns**: TABLE with `rollup_name`, `depends_on_names`, `refresh_order`, `bucket_interval`, `last_refreshed`.
 
@@ -211,10 +210,6 @@ SELECT * FROM lakets._get_dirty_chunks(1, '2026-04-01 00:00:00+00');
 
 - **`_validate_rollup_dependencies()`** — trigger on `_rollup_registry` that prevents self-dependencies and missing references
 - **`_build_rollup_dag(p_root_ids)`** — topological sort of the RollUp dependency graph. Raises on circular dependencies
-
-### Tier auto-routing
-
-- **`_resolve_bucket_tier(p_chronotable_id, p_bucket_start)`** — checks the chunk's status to decide whether the source data is in Lakebase or the Unity Catalog Managed Table. Returns `'hot'` or `'cold'`
 
 ### Bulk-import invalidation
 

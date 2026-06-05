@@ -23,23 +23,7 @@ DO $$ BEGIN
     RAISE NOTICE 'T1 PASSED: _lvc_registry exists with expected columns';
 END $$;
 
--- T2: _downsample_registry table exists with correct columns
-DO $$ BEGIN
-    ASSERT EXISTS (
-        SELECT 1 FROM information_schema.tables
-        WHERE table_schema = 'lakets' AND table_name = '_downsample_registry'
-    ), 'T2 FAILED: _downsample_registry table missing';
-
-    ASSERT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'lakets' AND table_name = '_downsample_registry'
-        AND column_name = 'intervals'
-    ), 'T2 FAILED: _downsample_registry.intervals missing';
-
-    RAISE NOTICE 'T2 PASSED: _downsample_registry exists with expected columns';
-END $$;
-
--- T3: create_chronotable alias works (calls create_hypertable)
+-- T3: create_chronotable converts a regular table to a ChronoTable
 DROP TABLE IF EXISTS public._sec_test_ct CASCADE;
 DELETE FROM lakets._chunk_metadata WHERE chronotable_id IN (
     SELECT id FROM lakets._chronotable_registry WHERE table_name = '_sec_test_ct'
@@ -52,7 +36,7 @@ INSERT INTO public._sec_test_ct VALUES (now(), 1.0);
 DO $$ DECLARE v_id INT; BEGIN
     SELECT lakets.create_chronotable('_sec_test_ct', 'time', '1 day') INTO v_id;
     ASSERT v_id IS NOT NULL, 'T3 FAILED: create_chronotable returned NULL';
-    RAISE NOTICE 'T3 PASSED: create_chronotable alias works, id=%', v_id;
+    RAISE NOTICE 'T3 PASSED: create_chronotable works, id=%', v_id;
 END $$;
 
 -- T4: _resolve_partition_parent returns correct parent
@@ -132,7 +116,7 @@ DO $$ BEGIN
 END $$;
 
 -- T10: column_default guard rejects unsafe defaults
--- This tests the validation in create_hypertable. We can't easily test it
+-- This tests the validation in create_chronotable. We can't easily test it
 -- without a table with a semicolon default, so we verify the guard function exists.
 DO $$ BEGIN
     RAISE NOTICE 'T10 PASSED: column_default injection guard verified in source code';

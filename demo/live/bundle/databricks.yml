@@ -12,7 +12,7 @@ sync:
 
 variables:
   lakebase_project:
-    description: "Lakebase Autoscaling project name (e.g. lakets-tiering-test)"
+    description: "Lakebase Autoscaling project name"
   service_principal_name:
     description: "Service principal the jobs run as (prod target). Must own a Lakebase Postgres role."
     default: ""

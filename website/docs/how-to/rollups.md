@@ -7,7 +7,7 @@ description: Create incremental rollups, build DAG dependencies, and refresh in 
 
 # Set up RollUps
 
-A RollUp is a pre-computed, incrementally-maintained aggregation table. Dashboards query it directly instead of re-scanning raw data every refresh. Only the buckets that changed since the last refresh are recomputed.
+A RollUp is a pre-computed, incrementally maintained aggregation table. Dashboards query it directly instead of re-scanning raw data on every refresh, and each refresh recomputes only the buckets that changed since the last one.
 
 ## Create a RollUp
 
@@ -24,13 +24,13 @@ SELECT lakets.create_rollup(
     'metrics'
 );
 
--- Query pre-computed data — fast
+-- Query the pre-computed table directly
 SELECT * FROM _rollup_metrics_hourly ORDER BY bucket DESC LIMIT 10;
 ```
 
 ## Add a real-time view
 
-Real-time views combine the pre-computed RollUp Table with a query for data newer than the watermark, so dashboards never see stale data.
+A real-time view unions the pre-computed RollUp table with a query over data newer than the watermark, so reads include rows that arrived since the last refresh.
 
 ```sql
 SELECT lakets.create_rollup_view('metrics_hourly',
@@ -62,7 +62,7 @@ SELECT lakets.enable_rollup_invalidation('metrics_hourly');
 
 ## RollUp dependencies (DAG cascade)
 
-Build hierarchical RollUps that refresh in the correct order — e.g. `metrics_daily` depends on `metrics_hourly`:
+RollUps can depend on other RollUps and refresh in dependency order. Here `metrics_daily` aggregates the hourly RollUp and declares it as a dependency:
 
 ```sql
 SELECT lakets.create_rollup(
@@ -87,4 +87,4 @@ SELECT * FROM lakets.refresh_rollup_cascade('metrics_daily');
 SELECT * FROM lakets.show_rollup_dag();
 ```
 
-See [How RollUps Work](../guides/how-it-works/rollups.md) for the internals — watermark refresh, invalidation log, chunk-skip pruning, DAG cascade, and Lakebase CDF sync.
+See [How RollUps Work](../guides/how-it-works/rollups.md) for the internals: watermark refresh, the invalidation log, chunk-skip pruning, DAG cascade, and Lakebase CDF sync.

@@ -1,12 +1,13 @@
 """
 LakeTS Retention Job
-Databricks Workflow job that enforces retention policies.
 
-For each chronotable with a retention or tiered_retention policy:
-1. Drop Lakebase partitions older than drop_after
-2. For tiered_retention: also vacuum Delta tables beyond drop_after
+For each ChronoTable with a retention or tiered_retention policy, drops the
+Lakebase partitions older than drop_after via lakets.execute_retention. On a
+CDF-synced table a chunk is dropped only once it is provably durable in the
+Unity Catalog Managed Table (fail-closed: deferred otherwise). Drops only touch
+Lakebase; the Unity Catalog copy is never deleted by this job.
 
-Schedule: Daily.
+Schedule: daily.
 """
 import logging
 import os
@@ -30,7 +31,10 @@ logger = logging.getLogger("lakets.retention_job")
 
 
 def run(project_name: str):
-    """Execute retention for all chronotables with policies."""
+    """Drop aged-out partitions for every ChronoTable with a retention policy.
+
+    Returns the total number of chunks dropped across all ChronoTables.
+    """
     with lakebase_cursor(project_name) as cur:
         chronotables = fetch_all(cur, """
             SELECT hr.schema_name, hr.table_name,

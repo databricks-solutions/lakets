@@ -39,10 +39,6 @@ The process of inserting placeholder rows for time buckets where no data arrived
 
 Where recent data lives: **Lakebase** (Postgres). Optimized for sub-10ms reads.
 
-## Hypertable
-
-Synonym for ChronoTable. The `create_hypertable()` alias exists for compatibility with TimescaleDB-shaped code.
-
 ## Incremental refresh
 
 How RollUps refresh: only buckets that received new data (the **dirty window**) are recomputed, instead of rebuilding the whole table. Driven by a **watermark** and an **invalidation log**.
@@ -79,7 +75,7 @@ See [How RollUps Work](./guides/how-it-works/rollups.md).
 
 ## Shadow table
 
-An unpartitioned `_shadow_<table>` in the `lakets_cdf` schema that mirrors writes from a ChronoTable or RollUp. Required because Lakebase CDF can't replicate partitioned tables directly. Created automatically by `lakets.enable_sync()`.
+An unpartitioned `_shadow_<table>` in the `lakets_cdf` schema that mirrors writes from a ChronoTable or RollUp. Required because Lakebase CDF can't sync partitioned tables directly. Created automatically by `lakets.enable_sync()`.
 
 ## Tag column
 
@@ -91,7 +87,7 @@ Two-phase lifecycle policy: tier to the Unity Catalog Managed Table after age N,
 
 ## Tiering
 
-Evicting cold chunks out of Lakebase to free hot-tier storage. The data already lives in the Unity Catalog Managed Table via Lakebase CDF, so `tier_chunk()` simply drops the old partition — but only once a CDF **durability gate** confirms every write to that chunk has been flushed to UC (the shadow is `STREAMING` and CDF's `committed_lsn` has reached the chunk's `last_write_lsn`). Configured with `add_tiering_policy()` and driven daily by the Databricks Tiering Job. See [How Tiering & Retention Works](./guides/how-it-works/tiering-and-retention.md).
+Validating that cold chunks are durable in the Unity Catalog Managed Table (the data already lives there via Lakebase CDF) and flagging them `tiered`, ready to drop. `tier_chunk()` sets the flag — it does **not** drop the partition; the data stays in Lakebase until retention removes it at `drop_after`. The flag is set only once a CDF **durability gate** confirms every write to that chunk has been flushed to UC (the shadow is `STREAMING` and CDF's `committed_lsn` has reached the chunk's `last_write_lsn`). Configured with `add_tiering_policy()` and driven by the Databricks Tiering Job. See [How Tiering & Retention Works](./guides/how-it-works/tiering-and-retention.md).
 
 ## Unity Catalog Managed Table
 

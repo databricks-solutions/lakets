@@ -15,6 +15,9 @@ CLAUDE.md
 # Local website dev/debug helper scripts (not part of the site build)
 website/scripts/
 
+# Generated from /CHANGELOG.md by website/sync-changelog.mjs (prestart/prebuild)
+website/docs/changelog.md
+
 # Generated test reports
 tests/TEST_REPORT.md
 
@@ -49,6 +52,14 @@ venv/
 # DrawIO temp/backup files
 .$*.drawio.bkp
 .$*.drawio.dtmp
+
+# Misc non-project scratch (logs, temp, backups, editor/OS leftovers)
+*.log
+*.tmp
+*.bak
+*~
+Thumbs.db
+.cache/
 
 # IDE
 .idea/

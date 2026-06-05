@@ -198,12 +198,6 @@ const config: Config = {
           activeBaseRegex: "/reference",
         },
         {
-          to: "/architecture-patterns",
-          label: "Architecture Patterns",
-          position: "left",
-          activeBaseRegex: "/architecture-patterns",
-        },
-        {
           href: "https://github.com/databricks-solutions/lakets/discussions",
           label: "Community",
           position: "left",

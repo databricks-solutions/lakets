@@ -1,7 +1,8 @@
 -- =============================================================================
 -- LakeTS Shadow Sync
--- Shadow table + trigger pattern for Lakehouse Sync (wal2delta CDC).
--- Required because Lakehouse Sync does not support partitioned tables.
+-- Shadow table + true-mirror trigger feeding Lakebase CDF (wal2delta).
+-- Required because Lakebase CDF rejects schemas containing partitioned tables,
+-- so the partitioned ChronoTable parent stays in public and is mirrored here.
 -- =============================================================================
 
 -- Sync bookkeeping columns on the RollUp registry (ChronoTable registry already has them).

@@ -44,15 +44,6 @@ DO $$ BEGIN
         created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
-    CREATE TABLE IF NOT EXISTS lakets._downsample_registry (
-        id              SERIAL PRIMARY KEY,
-        name            TEXT NOT NULL UNIQUE,
-        source_table    TEXT NOT NULL,
-        resolutions     JSONB NOT NULL DEFAULT '[]',
-        enabled         BOOLEAN DEFAULT TRUE,
-        created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-
     -- -------------------------------------------------------------------------
     -- 2. Add missing indexes (covering index for chunk metadata tier lookups)
     -- -------------------------------------------------------------------------
@@ -67,7 +58,6 @@ DO $$ BEGIN
         ADD COLUMN IF NOT EXISTS source_time_column   TEXT,
         ADD COLUMN IF NOT EXISTS predicate_injection  BOOLEAN DEFAULT TRUE,
         ADD COLUMN IF NOT EXISTS depends_on           INT[]   DEFAULT '{}',
-        ADD COLUMN IF NOT EXISTS cold_query_text      TEXT,
         ADD COLUMN IF NOT EXISTS export_enabled       BOOLEAN DEFAULT FALSE,
         ADD COLUMN IF NOT EXISTS export_delta_table   TEXT,
         ADD COLUMN IF NOT EXISTS export_mode          TEXT    DEFAULT 'incremental',

@@ -28,17 +28,50 @@ body:
     attributes:
       label: Install method
       options:
-        - Single-file release (lakets.sql)
+        - Single-file release artifact (dist/lakets.sql)
         - From source (sql/99_install.sql)
-        - Via psycopg / Databricks notebook
+        - Via psql / Databricks notebook
         - Other (describe below)
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature area
+      description: Which part of LakeTS is involved?
+      options:
+        - ChronoTables
+        - Time-series functions
+        - RollUps
+        - Tiering & retention
+        - Lakebase CDF sync
+        - Last Value Cache
+        - Bulk ingest
+        - Alerts
+        - Monitoring
+        - Databricks workflow jobs
+        - Other / unsure
+    validations:
+      required: true
+  - type: dropdown
+    id: job-involved
+    attributes:
+      label: Databricks job involved
+      description: If a scheduled Lakeflow job is implicated, select it. Otherwise choose None.
+      options:
+        - None
+        - Partition manager
+        - Tiering
+        - Retention
+        - RollUp refresh
+        - Unsure
     validations:
       required: true
   - type: textarea
     id: what-happened
     attributes:
       label: What happened?
-      description: Describe the bug. Include the function or module involved.
+      description: Describe the bug. Name the function or SQL module involved.
       placeholder: |
         I called `lakets.create_chronotable(...)` and got an unexpected error.
     validations:

@@ -139,11 +139,10 @@ DO $$ DECLARE v_count INT; BEGIN
     WHERE time BETWEEN now() - INTERVAL '3 days' AND now() - INTERVAL '3 days' + INTERVAL '10 minutes';
 
     SELECT count(*) INTO v_count FROM lakets._rollup_invalidation_log
-    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'test_ru')
-      AND tier = 'hot';
+    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'test_ru');
 
     ASSERT v_count > 0, 'invalidation log has no entries after UPDATE';
-    RAISE NOTICE 'T8 PASSED: invalidation log has % hot-tier entries', v_count;
+    RAISE NOTICE 'T8 PASSED: invalidation log has % entries', v_count;
 END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -154,33 +153,29 @@ DO $$ DECLARE v_result BOOLEAN; v_remaining INT; BEGIN
     ASSERT v_result = TRUE, 'refresh_rollup did not return TRUE';
 
     SELECT count(*) INTO v_remaining FROM lakets._rollup_invalidation_log
-    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'test_ru')
-      AND tier = 'hot';
+    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'test_ru');
 
     ASSERT v_remaining = 0, format('invalidation log still has % entries', v_remaining);
     RAISE NOTICE 'T9 PASSED: invalidation log cleared after refresh';
 END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- T10: invalidate_rollup_range creates entries with correct tier
+-- T10: invalidate_rollup_range records dirty buckets for resident source data
 -- ═══════════════════════════════════════════════════════════════════════════
-DO $$ DECLARE v_count INT; v_cold_count INT; BEGIN
+DO $$ DECLARE v_count INT; v_logged INT; BEGIN
     SELECT lakets.invalidate_rollup_range(
-        'test_ru', now() - INTERVAL '5 days', now() - INTERVAL '4 days', 'cold'
+        'test_ru', now() - INTERVAL '5 days', now() - INTERVAL '4 days'
     ) INTO v_count;
     ASSERT v_count > 0, 'invalidate_rollup_range returned 0';
 
-    SELECT count(*) INTO v_cold_count FROM lakets._rollup_invalidation_log
-    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'test_ru')
-      AND tier = 'cold';
+    SELECT count(*) INTO v_logged FROM lakets._rollup_invalidation_log
+    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'test_ru');
 
-    ASSERT v_cold_count = v_count, format('expected %s cold entries, got %s', v_count, v_cold_count);
-    RAISE NOTICE 'T10 PASSED: invalidate_rollup_range created % cold-tier entries', v_count;
+    ASSERT v_logged = v_count, format('expected %s logged entries, got %s', v_count, v_logged);
+    RAISE NOTICE 'T10 PASSED: invalidate_rollup_range recorded % dirty buckets', v_count;
 
-    -- Clean up cold entries (cold refresh is Databricks-side, not tested here)
     DELETE FROM lakets._rollup_invalidation_log
-    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'test_ru')
-      AND tier = 'cold';
+    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'test_ru');
 END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════

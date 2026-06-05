@@ -46,12 +46,6 @@ function StitchHeader() {
             >
               API
             </Link>
-            <Link
-              to="/architecture-patterns"
-              className="text-on-surface-variant hover:opacity-80 transition-opacity no-underline"
-            >
-              Architecture Patterns
-            </Link>
             <a
               href="https://github.com/databricks-solutions/lakets/discussions"
               className="text-on-surface-variant hover:opacity-80 transition-opacity no-underline"

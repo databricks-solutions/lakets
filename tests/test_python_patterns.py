@@ -26,36 +26,6 @@ def _read_source(module_path: str) -> str:
         return f.read()
 
 
-class TestColdRollupRefreshPatterns:
-    """Verify cold_rollup_refresh.py uses safe SQL patterns."""
-
-    SOURCE_PATH = "databricks/workflows/cold_rollup_refresh.py"
-
-    def test_validates_bucket_col(self):
-        """T5: cold_rollup_refresh validates bucket_col as safe identifier."""
-        source = _read_source(self.SOURCE_PATH)
-        assert "re.match" in source, \
-            "cold_rollup_refresh.py should validate bucket_col with regex"
-
-    def test_uses_sql_identifier_for_delete(self):
-        """T6: DELETE uses sql.Identifier, not f-string."""
-        source = _read_source(self.SOURCE_PATH)
-        assert 'f"DELETE FROM' not in source, \
-            "cold_rollup_refresh.py still uses f-string for DELETE"
-
-    def test_uses_sql_identifier_for_insert(self):
-        """T7: INSERT uses sql.Identifier, not f-string."""
-        source = _read_source(self.SOURCE_PATH)
-        assert 'f"INSERT INTO' not in source, \
-            "cold_rollup_refresh.py still uses f-string for INSERT"
-
-    def test_tracks_failures(self):
-        """T8: Failures are tracked and logged."""
-        source = _read_source(self.SOURCE_PATH)
-        assert "failures" in source, \
-            "cold_rollup_refresh.py should track failures"
-
-
 class TestTieringJobPatterns:
     """Verify tiering_job.py uses safe SQL patterns and delegates the drop to SQL."""
 

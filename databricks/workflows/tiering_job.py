@@ -1,17 +1,17 @@
 """
 LakeTS Tiering Job
 
-Drops cold ChronoTable partitions to reclaim Lakebase storage. The data is
-already durable in the Unity Catalog Managed Table via Lakebase CDF; this job
-only evicts partitions that lakets.tier_chunk confirms are safe to drop (the
-table's CDF shadow is STREAMING and has flushed past the WAL head). The drop
-and the metadata transition happen inside tier_chunk, so this job is pure
-Lakebase SQL — no Spark.
+Validates that cold ChronoTable partitions are durable in the Unity Catalog
+Managed Table (via Lakebase CDF) and flags them 'tiered'. This job never removes
+data: lakets.tier_chunk confirms the table's CDF shadow is STREAMING and has
+flushed past each chunk's last write, then flags the chunk. The retention job
+physically drops the Lakebase partition later, at drop_after. Pure Lakebase SQL,
+no Spark.
 
-Schedule: Daily or per tiering policy interval.
+Schedule: daily, or per the tiering policy interval.
 
-Usage as Databricks Job:
-    Pass project_name as a parameter.
+Pass the Lakebase project name as the first job parameter (sys.argv[1]) or set
+LAKETS_PROJECT.
 """
 import logging
 import os
@@ -35,9 +35,10 @@ logger = logging.getLogger("lakets.tiering_job")
 
 
 def run(project_name: str) -> int:
-    """Evict eligible, CDF-durable chunks for all tables with a tiering policy.
+    """Validate and flag CDF-durable chunks for all tables with a tiering policy.
 
-    Returns the number of partitions actually dropped this run.
+    Returns the number of partitions flagged 'tiered' (ready to drop) this run.
+    The partitions stay in Lakebase until the retention job drops them at drop_after.
     """
     total_tiered = 0
     deferred = 0
@@ -69,20 +70,20 @@ def run(project_name: str) -> int:
 
             for chunk in chunks:
                 cur.execute("SELECT lakets.tier_chunk(%s)", (chunk["chunk_name"],))
-                dropped = cur.fetchone()[0]  # raw cursor returns tuples (see fetch_all)
-                if dropped:
+                flagged = cur.fetchone()[0]  # raw cursor returns tuples (see fetch_all)
+                if flagged:
                     total_tiered += 1
-                    logger.info("Tiered (dropped) partition %s", chunk["chunk_name"])
+                    logger.info("Flagged %s — validated durable in UC, ready to drop", chunk["chunk_name"])
                 else:
                     deferred += 1
-                    logger.info("Deferred %s — CDF not caught up to WAL head", chunk["chunk_name"])
+                    logger.info("Deferred %s — CDF not caught up to the chunk's last write", chunk["chunk_name"])
 
             cur.execute("""
                 UPDATE lakets._policy_registry SET last_run_at = now()
                 WHERE chronotable_id = %s AND policy_type = 'tiering'
             """, (t["id"],))
 
-        logger.info("Tiering complete: %d dropped, %d deferred", total_tiered, deferred)
+        logger.info("Tiering complete: %d flagged, %d deferred", total_tiered, deferred)
         return total_tiered
 
 

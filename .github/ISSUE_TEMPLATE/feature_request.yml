@@ -32,21 +32,20 @@ body:
   - type: dropdown
     id: area
     attributes:
-      label: Area
+      label: Feature area
       multiple: true
       options:
         - ChronoTables
-        - Multi-metric tables
-        - Time series functions
-        - RollUp engine
-        - Compression / Tiering
-        - Retention
+        - Time-series functions
+        - RollUps
+        - Tiering & retention
+        - Lakebase CDF sync
         - Last Value Cache
-        - Lakehouse Sync
-        - Unity Catalog integration
-        - Ingest
+        - Bulk ingest
         - Alerts
         - Monitoring
+        - Databricks workflow jobs
+        - Docs
         - Other (describe in proposal)
     validations:
       required: true

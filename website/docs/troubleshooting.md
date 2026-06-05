@@ -82,7 +82,7 @@ Then re-enable sync from the Databricks UI.
 
 ### Schema change broke the sync
 
-Postgres replication is schema-sensitive. After an `ALTER TABLE`:
+Lakebase CDF is schema-sensitive. After an `ALTER TABLE`:
 
 - Stop the sync in the Databricks UI
 - Drop the shadow table and trigger: `SELECT lakets.disable_sync('metrics')`

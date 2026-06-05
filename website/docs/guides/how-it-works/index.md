@@ -17,8 +17,6 @@ Start here for the high-level picture, then follow the topic pages for each subs
 - **[Tiering & retention](./tiering-and-retention.md)** — lifecycle policies, the CDF durability gate, and chunk drops
 - **[Lakebase CDF internals](./lakebase-cdf-internals.md)** — shadow tables, triggers, CDC routing
 
-For a worked example following a single sensor reading from ingest through retention, see [Life of a sensor reading](../../examples/sensor-reading-journey.md).
-
 ## The problem
 
 Imagine you're collecting temperature readings from 1,000 sensors every second. That's **86 million rows per day**. After a year, you have 31 billion rows.
@@ -39,15 +37,17 @@ LakeTS has two paths for your data:
 ```mermaid
 flowchart LR
     APP["Your App"] -->|INSERT| HT["ChronoTable<br/>(Lakebase)<br/>fast reads/writes"]
-    HT -->|query| APP
-    HT -->|old data| UC["Unity Catalog<br/>Managed Table<br/>(cold storage)"]
-    UC -.->|federation query| HT
+    HT -->|low-latency query| APP
+    HT -->|old data tiers out| UC["Unity Catalog<br/>Managed Table<br/>(cold storage)"]
+    UC -->|analytics / long-range queries| DBX["Databricks SQL<br/>& Spark"]
 ```
 
-| Path | Where | Speed | Cost | What lives here |
-|------|-------|-------|------|-----------------|
-| **Hot** | Lakebase (Postgres) | < 10ms | Higher | Recent data (days to weeks) |
-| **Cold** | Unity Catalog Managed Table | 100ms–1s | Lower | Historical data (weeks to years) |
+Recent data is read straight from Lakebase over Postgres. As data ages, the tiering job validates that it is durable in the Unity Catalog Managed Table and flags the chunk `tiered` — at this point the partition is still resident in Lakebase. Later, the retention job drops the partition once it ages past `drop_after`. The cold copy is queried in Databricks (Databricks SQL, Spark, dashboards) as an ordinary Delta table. The two tiers are queried independently in their own engines; LakeTS does not federate the cold table back into Lakebase.
+
+| Path | Where | Speed | Cost | What lives here | Queried with |
+|------|-------|-------|------|-----------------|--------------|
+| **Hot** | Lakebase (Postgres) | < 10ms | Higher | Recent data (days to weeks) | Postgres / SQL clients |
+| **Cold** | Unity Catalog Managed Table | 100ms–1s | Lower | Historical data (weeks to years) | Databricks SQL / Spark |
 
 :::tip Key insight
 Most time series queries care about recent data. By keeping only recent data in the fast Postgres layer and archiving the rest to a Unity Catalog Managed Table, you get the best of both worlds.

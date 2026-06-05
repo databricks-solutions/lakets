@@ -5,241 +5,139 @@ sidebar_position: 3
 description: How incremental RollUps are maintained, refreshed, and optimized for scale.
 ---
 
-# How RollUps Work
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
-## The problem
+export const Demo = ({src, poster}) => (
+  <video autoPlay loop muted playsInline poster={useBaseUrl(poster)}
+    style={{ width: '100%', borderRadius: '0.75rem', margin: '1.25rem 0', border: '1px solid rgba(127,127,127,0.18)' }}>
+    <source src={useBaseUrl(src)} type="video/mp4" />
+  </video>
+);
 
-Dashboards query the same aggregations repeatedly:
+# How RollUps work
+
+Dashboards run the same aggregation repeatedly:
 
 ```sql
 SELECT lakets.time_bucket('1 hour'::interval, time) AS bucket, avg(cpu), count(*)
 FROM metrics WHERE time > now() - '7 days' GROUP BY 1;
 ```
 
-With 100M rows, this takes seconds every time. Stack it up:
+At 100M rows this query takes seconds, and dashboards run it constantly. Ten panels refreshing every 30 seconds issue roughly 1,200 identical scans per hour, each reading the full seven-day window — even though most of those rows have not changed since the previous scan. A RollUp computes the aggregation once and serves it from a small pre-aggregated table, recomputing only the buckets that actually change.
 
-- 10 dashboard panels × 30-second refresh → 1,200 identical scans per hour
-- Each scan reads every row in the last 7 days
-- Most of those rows haven't changed since the previous scan
+## RollUp objects
 
-Your database is constantly doing the same expensive work.
+A **RollUp** is an incrementally-maintained, time-bucketed aggregation table. Unlike a materialized view, which must be fully rebuilt, a RollUp is a regular table that supports per-bucket `DELETE` + `INSERT`, so only changed time buckets are recomputed.
 
-## The solution: incremental RollUps
+`create_rollup` establishes three objects:
 
-A **RollUp** is an incrementally-maintained, time-bucketed aggregation table. Unlike a materialized view (which must be fully rebuilt), a RollUp is a regular table that supports surgical per-bucket DELETE + INSERT — only dirty time buckets are recomputed.
+1. **RollUp table** (`_rollup_<name>`, in `public`): a regular table holding the pre-computed aggregation, with a unique index across all result columns to support per-bucket replacement. The bucket column is auto-detected as the first timestamp column in the query.
+2. **Real-time view** (`_rollup_rt_<name>`): a `UNION ALL` of the RollUp table and a query for source data newer than the watermark. `create_rollup` reserves the view name; `create_rollup_view` builds the view from a supplied raw query that filters above `lakets._rollup_watermark('<name>')`.
+3. **Registry entry** in `_rollup_registry`: tracks the name, source ChronoTable, bucket interval, query text, watermark, and dependencies.
 
-```mermaid
-flowchart TB
-    subgraph ROLLUP["RollUp Table (pre-computed)"]
-        RT["Hourly averages<br/>up to watermark<br/>(e.g., up to 14:00)"]
-    end
+## Incremental refresh and the watermark
 
-    subgraph RAW["Raw Query (fresh data)"]
-        RQ["Hourly averages<br/>AFTER watermark<br/>(14:00 to now)"]
-    end
+The **watermark** is the most recent fully-materialized bucket. A query against the real-time view reads pre-aggregated buckets up to the watermark and aggregates only the small live tail beyond it; the two halves are combined with `UNION ALL`.
 
-    subgraph UNION["Real-Time View (UNION ALL)"]
-        VIEW["Complete result:<br/>pre-computed + fresh"]
-    end
+<Demo src="/video/rollup-refresh.mp4" poster="/video/rollup-refresh-poster.png" />
 
-    RT --> VIEW
-    RQ --> VIEW
-    APP["Dashboard"] --> VIEW
-```
+`refresh_rollup('<name>')` advances the materialized region:
 
-**Three objects are created**:
-
-1. **RollUp Table** (`_rollup_<name>`): A regular table storing pre-computed aggregations. Supports per-bucket updates via unique index on all columns.
-2. **Real-Time View** (`_rollup_rt_<name>`): A `UNION ALL` of the RollUp Table + a query for data newer than the watermark.
-3. **Registry entry** in `_rollup_registry`: Tracks the RollUp name, bucket interval, watermark, and last refresh time.
-
-## How incremental refresh works
-
-The **watermark** is the `bucket_start` of the most recent fully-materialized time bucket.
-
-```
+```text
 Before refresh:
-  RollUp Table has data up to 14:00 (watermark)
+  RollUp table materialized up to 14:00 (watermark)
   Raw table has data up to 15:37
 
   refresh_rollup('metrics_hourly'):
-    1. DELETE FROM _rollup_metrics_hourly WHERE bucket >= 13:00  (watermark - 1 bucket)
-    2. INSERT INTO _rollup_metrics_hourly SELECT ... WHERE bucket >= 13:00
-    3. Process invalidation log (historical dirty buckets, if any)
-    4. Advance watermark to 15:00
+    1. Compute the dirty window: watermark - one bucket_interval (13:00)
+    2. DELETE FROM _rollup_metrics_hourly WHERE bucket >= 13:00
+    3. INSERT INTO _rollup_metrics_hourly SELECT ... WHERE bucket >= 13:00
+    4. Process any historical dirty buckets from the invalidation log
+    5. Advance the watermark to 15:00
 
 After refresh:
-  RollUp Table has data up to 15:00
-  Watermark = 15:00
-
-  Query _rollup_rt_metrics_hourly:
-    = [RollUp Table: buckets up to 15:00]
-      UNION ALL
-      [raw query: data from 15:00 to 15:37]
+  RollUp table materialized up to 15:00
 ```
 
-Only the dirty window (one bucket overlap for safety) is recomputed — not the entire dataset.
+The dirty window overlaps the watermark by exactly one bucket interval, so the bucket straddling the boundary is always recomputed rather than left half-aggregated. Each refresh takes an advisory lock to serialize concurrent runs, and self-gates on `refresh_lag` (default one hour) — a scheduled refresh that fires inside the lag window returns without doing work.
 
-## How invalidation works (historical mutations)
+## Invalidation of historical buckets
 
-For append-only workloads, watermark-based refresh is sufficient. But if historical data is updated (e.g., late-arriving corrections), the affected time buckets must be re-aggregated.
+Watermark refresh covers append-only data. When historical rows change — late-arriving corrections, backfills — the affected buckets must be re-aggregated. LakeTS tracks this with an invalidation log and two triggers on the source ChronoTable:
 
-LakeTS uses an **invalidation trigger** that watches for INSERT, UPDATE, and DELETE on the source ChronoTable. For each affected row, the trigger:
+- A **per-row trigger** handles `UPDATE` and `DELETE`. For each affected row it computes the bucket with `date_bin(bucket_interval, time, '2000-01-01')` and records it in `_rollup_invalidation_log`.
+- A **statement-level trigger** handles `INSERT`, including `COPY FROM` and `INSERT ... SELECT`, which bypass per-row triggers. It reads the inserted range from the `NEW` transition table and invalidates the affected buckets below the watermark.
 
-1. Resolves the parent table (partitions fire triggers with the child table name)
-2. Computes the dirty bucket via `date_bin(bucket_interval, time_value, '2000-01-01')`
-3. Upserts into `_rollup_invalidation_log` with `tier = 'hot'`
+<Demo src="/video/rollup-invalidation.mp4" poster="/video/rollup-invalidation-poster.png" />
 
-On the next `refresh_rollup()` call, all hot-tier invalidation entries older than the watermark are processed — each dirty bucket is individually DELETE + INSERT'd — and the log is cleared.
+On the next `refresh_rollup()`, the dirty buckets recorded in the log are re-aggregated individually and then cleared — the rest of the table is untouched.
 
-## Hot-tier vs cold-tier refresh
+## Refresh from Lakebase-resident data
 
-RollUp Tables persist in Lakebase permanently (aggregates are tiny compared to raw data). The raw **source** data, however, does not: the [tiering job](../../reference/workflow-jobs.md) evicts cold partitions from Lakebase once Lakebase CDF has flushed them to the Unity Catalog Managed Table. So at any moment a RollUp's source buckets live in one of two places:
+RollUp tables persist in Lakebase permanently; aggregates are tiny compared to raw data. The raw **source** data does not: the [tiering job](../../reference/workflow-jobs.md) validates durability and flags cold chunks `tiered` once Lakebase CDF has flushed them to the Unity Catalog Managed Table, and the retention job later drops those partitions from Lakebase.
 
-| Tier | Source data location | Refresh engine | How it works |
-|------|--------------|----------------|--------------|
-| **Hot** | Lakebase (Postgres) | `refresh_rollup()` SQL function | Watermark + invalidation log, runs every 15 min |
-| **Cold** | Unity Catalog Managed Table | `cold_rollup_refresh.py` Databricks job | Reads cold invalidation entries, re-aggregates via Databricks SQL, writes back to Lakebase |
+RollUps are maintained entirely from Lakebase-resident source data. A chunk's status determines whether its buckets can still be refreshed:
 
-A bucket's tier is **auto-detected** from the covering chunk's status (`active` → hot, `tiered` → cold; see [Tier auto-routing](#tier-auto-routing--hot-vs-cold-detected-automatically)). The hot refresh processes only `tier = 'hot'` entries and re-aggregates from Lakebase; it deliberately **skips** cold entries, because the source rows are no longer in Postgres — they exist only in Delta. The cold job is the *only* thing that can refresh those buckets, by re-aggregating from the Delta copy via a SQL warehouse and writing the result back into the Lakebase RollUp Table.
+| Chunk status | Source data in Lakebase? | Refreshable? |
+|---|---|---|
+| `active` | yes (recent) | yes — re-aggregated in place |
+| `tiered` | yes (validated in UC, not yet dropped) | yes — re-aggregated in place |
+| `dropped` | no — only in Unity Catalog | no — bucket stays frozen |
 
-### When you need cold-tier refresh
+Both `active` and `tiered` chunks are resident in Lakebase, so their buckets are re-aggregated normally by `refresh_rollup()`. Once a source partition is `dropped`, its rows no longer exist in Postgres, so the covering buckets keep their last computed value. `invalidate_rollup_range('<name>', '<from>', '<to>')` silently skips buckets whose source partition has been dropped — corrections to source data that has already left Lakebase are not re-aggregated. To keep late corrections in scope, size `drop_after` larger than your worst-case data lateness so the window is still resident when the correction lands.
 
-You need `cold_rollup_refresh` only when **data that has already been tiered to cold changes**, and you want the RollUp to reflect that change:
-
-1. **Late-arriving data** — a record for an old time window whose chunk was already tiered (e.g. a delayed device or event lands days later).
-2. **Historical corrections / restatements** — an ETL fix, reprocessing, or backfill rewrites a past day in the Unity Catalog Managed Table.
-3. **Manual backfill** — you explicitly mark an old, now-cold window dirty after fixing upstream data.
-
-In each case the invalidation is logged with `tier = 'cold'` (auto-detected, because the covering chunk is `tiered`), the 15-minute hot refresh skips it, and it stays unprocessed until the cold job runs.
-
-### When you don't
-
-If your time series is effectively **append-only / immutable once tiered** — the common case for metrics, logs, and observability data — cold buckets are never invalidated. The job simply logs `No cold-tier invalidations pending` and exits. You can leave it deployed (it is cheap and idempotent) or skip scheduling it entirely. The tradeoff if you remove it: once data tiers to cold, its RollUps are **frozen** — later corrections to historical data will not be reflected.
-
-### How to use it
-
-The job is **on-demand** — the bundle ships it without a schedule. Run it after the cold source data changes:
-
-```sql
--- 1. Mark the affected (already-tiered) window dirty. The tier is auto-detected
---    from chunk status; pass p_tier => 'cold' to force it.
-SELECT lakets.invalidate_rollup_range('metrics_hourly',
-    '2026-01-01'::timestamptz, '2026-01-02'::timestamptz);
-```
-
-```bash
-# 2. Run the cold re-aggregation job (Databricks Asset Bundle).
-databricks bundle run lakets_cold_rollup_refresh -t prod
-```
-
-The job reads the pending `tier = 'cold'` entries, re-aggregates each dirty bucket from `<catalog>.<schema>.<source_table>` in Unity Catalog (auto-starting a serverless SQL warehouse if none is running), `DELETE`s the stale rows and `INSERT`s the recomputed rows into the Lakebase RollUp Table, then clears the processed cold entries. It is idempotent — re-running with nothing pending is a no-op. For RollUps whose hot `query_text` cannot be rewritten to the Delta table by simple name substitution (multi-table joins, etc.), set an explicit `cold_query_text` on the RollUp.
+For long-term access to RollUp results from Spark, BI, and ML, sync the RollUp table to Unity Catalog with `enable_sync()` (see [Unity Catalog sync via Lakebase CDF](#unity-catalog-sync-via-lakebase-cdf) below).
 
 ---
 
-# RollUp optimizations at scale
+## Optimizations at scale
 
-The core refresh loop above is correct but naive. Once you're running 100M+ rows or many hierarchical RollUps, several bottlenecks appear:
+The baseline refresh loop re-scans the full source table on every run. At 100M+ rows, or across many hierarchical RollUps, several bottlenecks emerge:
 
-- Full table scans even when only a few chunks changed
-- One `DELETE` + one `INSERT` per dirty bucket (2N statements for N buckets)
-- Hierarchical RollUps refreshed in arbitrary order, so a daily RollUp may read stale hourly data
-- Manual `tier = 'hot' | 'cold'` arguments on invalidation calls
-- `COPY FROM` bypasses per-row triggers, so bulk imports leave RollUps stale
-- RollUp Tables stuck in Lakebase, invisible to Spark / BI / ML
+- Full table scans even when only a few chunks changed.
+- One `DELETE` + one `INSERT` per dirty bucket (2N statements for N buckets).
+- Hierarchical RollUps refreshed in arbitrary order, so a daily RollUp may read stale hourly data.
+- `COPY FROM` bypassing per-row triggers, leaving RollUps stale after bulk imports.
+- RollUp tables confined to Lakebase, invisible to Spark, BI, and ML.
 
-LakeTS addresses each of these:
+LakeTS addresses each of these.
 
-```mermaid
-flowchart TB
-    subgraph PRUNE["Chunk-skip + predicate injection"]
-        CS["Skip unchanged partitions"]
-        PI["Push time filter into source scan"]
-    end
+### Chunk-skip pruning and predicate injection
 
-    subgraph BATCH["Batch bucket refresh"]
-        BB["1 DELETE + 1 INSERT<br/>using ANY(array)"]
-    end
+The baseline `refresh_rollup()` re-scans the entire source table on every run. LakeTS narrows this to the data that actually changed:
 
-    subgraph DAG["DAG dependencies"]
-        TOPO["Topological sort<br/>(Kahn's algorithm)"]
-        CASC["refresh_rollup_cascade()<br/>dependency-ordered refresh"]
-    end
+- **Chunk-skip pruning**: `last_modified_at` is tracked per chunk, and `_get_dirty_chunks()` returns only the chunks modified since the last refresh.
+- **Predicate injection**: the inner source query is rewritten with a `WHERE time >= dirty_from` clause so Postgres prunes partitions at the scan level.
 
-    subgraph TIER["Tier auto-routing"]
-        TR["Detect hot vs cold<br/>from chunk metadata"]
-    end
-
-    subgraph BULK["Bulk-import invalidation"]
-        BII["Statement-level trigger<br/>catches COPY FROM"]
-    end
-
-    subgraph SYNC["Lakebase CDF sync"]
-        SYN["Shadow table + CDF<br/>enable_sync()"]
-    end
-
-    PRUNE --> BATCH
-    BATCH --> DAG
-    TIER --> BATCH
-    BULK --> BATCH
+```text
+Before:  SELECT ... FROM metrics GROUP BY 1                       -- scans all partitions
+After:   SELECT ... FROM metrics WHERE time >= '2026-03-25' GROUP BY 1  -- scans 2 of 30
 ```
 
-## Chunk-skip pruning + predicate injection — "only scan what changed"
+Predicate injection runs `EXPLAIN` on the rewritten query first; if the rewrite fails — a complex subquery, for instance — LakeTS falls back to the original query, so a refresh can never be corrupted by the optimization.
 
-The default `refresh_rollup()` re-scanned the whole source table every run. LakeTS now combines two optimizations:
+### Batch bucket refresh
 
-- **Chunk-skip pruning**: `last_modified_at` is tracked per chunk. `_get_dirty_chunks()` returns only the chunks that changed since the last refresh.
-- **Predicate injection**: the inner source query is rewritten with a `WHERE time >= dirty_from` clause so Postgres can prune partitions at the scan level.
-
-```
-Before:
-  refresh_rollup('metrics_hourly')
-    -> SELECT ... FROM metrics GROUP BY 1     -- scans ALL partitions
-    -> 500ms for 100M rows
-
-After:
-  refresh_rollup('metrics_hourly')
-    -> _get_dirty_chunks()                    -- only 2 of 30 chunks modified
-    -> _inject_time_predicate()               -- adds WHERE time >= '2026-03-25'
-    -> SELECT ... FROM metrics WHERE time >= '2026-03-25' GROUP BY 1
-    -> 15ms (scans 2 partitions)
-```
-
-Predicate injection runs `EXPLAIN` on the rewritten query first; if the rewrite fails (e.g. complex subquery), LakeTS falls back to the original query — no risk of corruption.
-
-## Batch bucket refresh — "2 statements instead of 2N"
-
-The original invalidation-log phase ran a `FOR` loop: one `DELETE` + one `INSERT` per dirty bucket. With 50 dirty buckets that's 100 SQL statements per refresh.
-
-LakeTS now batches dirty buckets into a single `ANY(array)` predicate:
+The invalidation phase originally ran a loop of one `DELETE` + one `INSERT` per dirty bucket — 2N statements for N buckets. LakeTS batches dirty buckets into a single `ANY(array)` predicate:
 
 ```sql
--- Before: 2N statements (sequential loop)
-FOR each bucket IN dirty_buckets LOOP
-    DELETE FROM _rollup_hourly WHERE bucket = bucket_val;
-    INSERT INTO _rollup_hourly SELECT ... WHERE bucket = bucket_val;
-END LOOP;
-
--- After: 2 statements (batch)
 DELETE FROM _rollup_hourly WHERE bucket = ANY(dirty_buckets_array);
 INSERT INTO _rollup_hourly SELECT * FROM (query) WHERE bucket = ANY(dirty_buckets_array);
 ```
 
-For very large dirty sets (>100 buckets), `_refresh_buckets_chunked()` splits the array into smaller batches to avoid Postgres planner degradation.
+For large dirty sets, `_refresh_buckets_chunked()` splits the array into batches of 100 to avoid planner degradation.
 
-## DAG dependencies — "refresh in the right order"
+### Dependency-ordered refresh
 
-Hierarchical RollUps (hourly → daily → weekly) must refresh in dependency order, otherwise a daily RollUp reads stale hourly data.
-
-LakeTS stores dependencies in a `depends_on` column. `_build_rollup_dag()` performs a topological sort (Kahn's algorithm) with cycle detection, then refreshes in that order.
+Hierarchical RollUps (hourly → daily → weekly) must refresh in dependency order, or a daily RollUp reads stale hourly data. Dependencies are stored in a `depends_on` column; `refresh_rollup_cascade()` performs a topological sort (Kahn's algorithm, with cycle detection) and refreshes children before parents in a single pass.
 
 ```mermaid
 flowchart LR
-    RAW["Raw Data<br/>(metrics)"]
+    RAW["Raw data<br/>(metrics)"]
     H["metrics_hourly<br/>(1h buckets)"]
-    D["metrics_daily<br/>(1d buckets)<br/>depends_on: [hourly]"]
-    W["metrics_weekly<br/>(7d buckets)<br/>depends_on: [daily]"]
-    A["alerts_hourly<br/>(1h buckets)<br/>depends_on: [hourly]"]
+    D["metrics_daily<br/>(1d buckets)<br/>depends on: hourly"]
+    W["metrics_weekly<br/>(7d buckets)<br/>depends on: daily"]
+    A["alerts_hourly<br/>(1h buckets)<br/>depends on: hourly"]
 
     RAW --> H
     H --> D
@@ -250,108 +148,79 @@ flowchart LR
 ```sql
 -- Refresh all RollUps in dependency order
 SELECT * FROM lakets.refresh_rollup_cascade('metrics_weekly');
--- Returns:
 -- rollup_name      | refreshed | refresh_ms
 -- metrics_hourly   | true      | 12.5
 -- metrics_daily    | true      | 8.3
 -- metrics_weekly   | true      | 5.1
 
--- View the DAG
+-- Inspect the dependency graph
 SELECT * FROM lakets.show_rollup_dag();
 ```
 
-## Tier auto-routing — "hot vs cold detected automatically"
+Each RollUp still self-gates on its `refresh_lag`, so a `refreshed = false` row in the cascade output is expected when nothing in that RollUp has aged past the lag.
 
-Originally, `invalidate_rollup_range()` required a `tier = 'hot' | 'cold'` argument. Callers had to know which chunks had already tiered to the Unity Catalog Managed Table.
+### Bulk-import invalidation
 
-The default now resolves the tier from the chunk's status:
+`COPY FROM` and multi-row `INSERT ... SELECT` bypass per-row triggers, which would leave RollUps stale after a bulk import. A statement-level `AFTER INSERT` trigger using `REFERENCING NEW TABLE` exposes every inserted row as a transition table, reads the inserted time range once, and invalidates the affected buckets:
 
-| Chunk status | Resolved tier | Meaning |
-|---|---|---|
-| `active` | hot | Data in Lakebase |
-| `tiered` | cold | Data in Unity Catalog Managed Table |
-
-You can still pass `p_tier` explicitly when you need to override.
-
-## Bulk-import invalidation — "catch COPY FROM"
-
-Postgres's `COPY FROM` and multi-row `INSERT INTO ... SELECT` bypass per-row triggers. Before this fix, bulk imports left RollUps stale until the next watermark refresh.
-
-The fix is a statement-level `AFTER INSERT` trigger using `REFERENCING NEW TABLE AS _new_rows` — a Postgres feature that exposes every inserted row as a transition table:
-
-```
-COPY metrics FROM 'sensor_data.csv';
-  -> 50,000 rows inserted
-  -> Statement-level trigger fires ONCE
-  -> SELECT min(time), max(time) FROM _new_rows
-  -> Calls invalidate_rollup_range(min_time, max_time)
-  -> All affected RollUp buckets marked dirty
+```text
+COPY metrics FROM 'sensor_data.csv';   -- 50,000 rows
+  -> statement-level trigger fires once
+  -> reads min(time), max(time) from the transition table
+  -> invalidates the affected RollUp buckets below the watermark
 ```
 
-Both triggers coexist:
+The per-row trigger handles `UPDATE` and `DELETE`; the statement-level trigger handles `INSERT`, including `COPY`.
 
-- The per-row trigger handles `UPDATE` and `DELETE`.
-- The statement-level trigger handles `INSERT` (including `COPY`).
+### Unity Catalog sync via Lakebase CDF
 
-## Lakebase CDF sync — "RollUp Tables visible to Spark / BI / ML"
-
-RollUp Tables live in Lakebase. Downstream consumers (BI dashboards, Spark jobs, ML pipelines) typically read from Unity Catalog instead.
-
-`enable_sync()` sets up a shadow in `lakets_cdf` and Lakebase CDF replicates it continuously to a Unity Catalog Managed Table:
+RollUp tables live in Lakebase, but downstream consumers — BI, Spark, ML — typically read from Unity Catalog. `enable_sync()` creates an unpartitioned shadow in `lakets_cdf` and Lakebase CDF streams it continuously to a Unity Catalog Managed Table:
 
 ```mermaid
 flowchart LR
     subgraph LAKEBASE["Lakebase"]
-        RT["RollUp Table<br/>_rollup_metrics_hourly"]
-        SH["Shadow table<br/>lakets_cdf._shadow_rollup_metrics_hourly<br/>REPLICA IDENTITY FULL"]
+        RT["RollUp table<br/>_rollup_metrics_hourly"]
+        SH["Shadow<br/>lakets_cdf._shadow_rollup_metrics_hourly<br/>REPLICA IDENTITY FULL"]
     end
-
     subgraph CDF["Lakebase CDF"]
         CDC["WAL → Delta (wal2delta)"]
     end
-
     subgraph UC["Unity Catalog Managed Table"]
         DT["lb__shadow_rollup_metrics_hourly_history"]
     end
-
-    RT -- "mirror trigger" --> SH
+    RT -- "true-mirror trigger" --> SH
     SH --> CDC
     CDC --> DT
 ```
 
-The UC destination is an append-only change feed. Use `disable_sync()` to stop replication (the UC table is not dropped).
+See [Lakebase CDF internals](./lakebase-cdf-internals.md) for the shadow and mirror mechanics. Use `disable_sync()` to stop the sync; the Unity Catalog table is left in place.
 
-## What `refresh_rollup()` does end to end
+## The refresh_rollup() pipeline
 
 ```mermaid
 flowchart TB
     START["refresh_rollup('metrics_hourly')"]
-    LAG{"Refresh lag<br/>elapsed?"}
-    SKIP["Return FALSE<br/>(skipped)"]
-
-    P1["Phase 1: Watermark Refresh"]
-    PRED{"predicate_injection<br/>enabled?"}
-    INJ["_inject_time_predicate()<br/>add WHERE time >= dirty_from"]
+    LAG{"refresh_lag<br/>elapsed?"}
+    SKIP["Return FALSE (skipped)"]
+    P1["Phase 1: watermark refresh"]
+    PRED{"predicate injection<br/>enabled?"}
+    INJ["_inject_time_predicate()"]
     NOINJ["Use original query"]
     DEL1["DELETE WHERE bucket >= dirty_from"]
     INS1["INSERT ... WHERE bucket >= dirty_from"]
-
-    P2["Phase 2: Invalidation Log"]
-    DIRTY{"Hot-tier dirty<br/>buckets?"}
-    BATCH["_refresh_buckets_chunked()<br/>2 statements per chunk"]
-    CLEAR["Clear invalidation log"]
-
+    P2["Phase 2: invalidation log"]
+    DIRTY{"dirty<br/>buckets?"}
+    BATCH["_refresh_buckets_chunked()"]
+    CLEAR["Clear processed entries"]
     WM["Advance watermark"]
     DONE["Return TRUE"]
 
     START --> LAG
     LAG -- No --> SKIP
-    LAG -- Yes --> P1
-    P1 --> PRED
+    LAG -- Yes --> P1 --> PRED
     PRED -- Yes --> INJ --> DEL1
     PRED -- No --> NOINJ --> DEL1
-    DEL1 --> INS1 --> P2
-    P2 --> DIRTY
+    DEL1 --> INS1 --> P2 --> DIRTY
     DIRTY -- Yes --> BATCH --> CLEAR
     DIRTY -- No --> CLEAR
     CLEAR --> WM --> DONE

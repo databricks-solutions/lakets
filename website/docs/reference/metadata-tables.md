@@ -49,7 +49,7 @@ Upgrade guard: prevents downgrade or re-install of the same version.
 | `status` | TEXT | `active` / `tiered` / `dropped` |
 | `row_count` | BIGINT | Estimated rows in the chunk |
 | `size_bytes` | BIGINT | Estimated chunk size on disk |
-| `tiered_at` | TIMESTAMPTZ | When the chunk was tiered (partition dropped) |
+| `tiered_at` | TIMESTAMPTZ | When the chunk was flagged `tiered` (validated durable in UC; partition still resident in Lakebase) |
 | `last_write_lsn` | PG_LSN | WAL position of the chunk's most recent write (used by the tiering durability gate) |
 | `last_modified_at` | TIMESTAMPTZ | Last write timestamp (powers chunk-skip pruning) |
 | `created_at` | TIMESTAMPTZ | Creation time |
@@ -72,7 +72,6 @@ Upgrade guard: prevents downgrade or re-install of the same version.
 | `source_time_column` | TEXT | Source time column used for predicate injection |
 | `predicate_injection` | BOOLEAN | Whether incremental refresh injects a time predicate |
 | `depends_on` | INT[] | Upstream rollup IDs for cascade refresh |
-| `cold_query_text` | TEXT | Optional cold-tier (Delta) re-aggregation query |
 | `sync_enabled` | BOOLEAN | Whether Lakebase CDF sync is enabled |
 | `shadow_table_name` | TEXT | `lakets_cdf` shadow table name when sync is enabled |
 | `created_at` | TIMESTAMPTZ | Registration time |
@@ -84,7 +83,6 @@ Upgrade guard: prevents downgrade or re-install of the same version.
 | `id` | SERIAL | Unique entry id |
 | `rollup_id` | INT | FK to `_rollup_registry` |
 | `bucket_start` | TIMESTAMPTZ | Dirty bucket timestamp |
-| `tier` | TEXT | `hot` / `cold` |
 | `invalidated_at` | TIMESTAMPTZ | When marked dirty |
 
 ## `_policy_registry`
@@ -111,22 +109,5 @@ Upgrade guard: prevents downgrade or re-install of the same version.
 | `enabled` | BOOLEAN | Active flag |
 | `created_at` | TIMESTAMPTZ | Registration time |
 
-## `_downsample_registry`
-
-Stores multi-resolution downsampling pipeline metadata, executed by the Databricks downsampling job.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | SERIAL | Unique pipeline id |
-| `name` | TEXT | Pipeline name (unique) |
-| `source_table` | TEXT | Source table name |
-| `source_schema` | TEXT | Source schema (default `public`) |
-| `intervals` | INTERVAL[] | Resolution intervals (e.g. `1m`, `1h`, `1d`) |
-| `retention` | INTERVAL[] | Per-resolution retention windows |
-| `agg_expressions` | TEXT[] | Aggregation expressions applied at each resolution |
-| `group_by` | TEXT[] | Optional grouping (tag) columns |
-| `delta_catalog` | TEXT | Target Unity Catalog catalog (default `main`) |
-| `delta_schema` | TEXT | Target Delta schema (default `lakets_rollups`) |
-| `created_at` | TIMESTAMPTZ | Registration time |
 
 

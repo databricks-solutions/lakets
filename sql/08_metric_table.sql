@@ -39,7 +39,7 @@ BEGIN
     EXECUTE format('CREATE TABLE %I.%I (%s)', p_schema_name, p_table_name, v_col_defs);
 
     -- Convert to ChronoTable (partitioned by time)
-    v_chronotable_id := lakets.create_hypertable(
+    v_chronotable_id := lakets.create_chronotable(
         p_table_name, 'time', p_chunk_interval, p_schema_name
     );
 

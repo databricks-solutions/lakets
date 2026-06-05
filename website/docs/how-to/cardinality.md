@@ -7,7 +7,7 @@ description: Track distinct tag values to prevent label explosion in multi-metri
 
 # Manage tag cardinality
 
-In a multi-metric ChronoTable, tag columns identify a series (`host`, `region`, `env`, etc.). If a tag column accidentally captures something like a request ID — high-cardinality data — the table explodes into millions of distinct series and queries slow to a crawl. LakeTS gives you two functions to detect this before it becomes a problem.
+In a multi-metric ChronoTable, tag columns identify a series (`host`, `region`, `env`, and so on). When a tag column accidentally captures high-cardinality data such as a request ID, the table expands into millions of distinct series and query performance degrades. LakeTS provides two functions to detect this condition early.
 
 ## Inspect cardinality per tag
 
@@ -19,7 +19,7 @@ SELECT * FROM lakets.cardinality_stats('system_metrics');
 -- env    | 3               | 100000     | 0.003%
 ```
 
-`pct_of_rows` is the giveaway. Healthy tags are well under 1%. If a column approaches 10%+ it's behaving like a primary key — almost certainly a mis-modelled field.
+`pct_of_rows` is the key indicator. Healthy tags sit well under 1%. A column approaching 10% or more is behaving like a primary key and is almost certainly a mis-modelled field.
 
 ## Set a cardinality budget
 
@@ -29,7 +29,7 @@ SELECT * FROM lakets.cardinality_check('system_metrics', 10000);
 -- OK     | 750                  | 10000
 ```
 
-`combined_cardinality` is the product of distinct values across all tag columns — the actual series count. Call this in a scheduled job and alert on `status != 'OK'`.
+`combined_cardinality` is the product of distinct values across all tag columns, which is the actual series count. Run this in a scheduled job and alert on `status != 'OK'`.
 
 ## Common fixes
 

@@ -7,11 +7,11 @@ description: SQL-native threshold and deadman alerts that run inside Lakebase ag
 
 # Alert rules
 
-LakeTS supports two alert primitives inside Lakebase — no external alerting service required. Both run as plain SQL functions, so you can schedule them with `pg_cron`, the Databricks bundle, or any other scheduler.
+LakeTS provides two alert primitives that run inside Lakebase, with no external alerting service required. Both are plain SQL functions and can be scheduled with `pg_cron`, the Databricks bundle, or any other scheduler.
 
 ## Threshold alerts
 
-Fire when a query returns rows. Use this for "CPU > 90", "queue depth > N", etc.
+A threshold alert fires when its query returns rows. It suits conditions such as CPU above 90 or queue depth above a limit.
 
 ```sql
 SELECT * FROM lakets.alert_check(
@@ -24,11 +24,11 @@ SELECT * FROM lakets.alert_check(
 );
 ```
 
-Returns each violating row tagged with severity, alert name, and timestamp.
+The function returns each violating row tagged with severity, alert name, and timestamp.
 
 ## Deadman alerts
 
-Fire when expected data **stops** arriving. Use this for sensor liveness, ingest pipeline health, etc.
+A deadman alert fires when expected data stops arriving. It suits sensor liveness and ingest pipeline health checks.
 
 ```sql
 SELECT * FROM lakets.alert_deadman(
@@ -36,13 +36,13 @@ SELECT * FROM lakets.alert_deadman(
 );
 ```
 
-Returns hosts that haven't reported in the last 5 minutes.
+The function returns hosts that have not reported in the last 5 minutes.
 
-## Wiring to external systems
+## Routing to external systems
 
-Alert functions return rows. Wrap them in your scheduler of choice and pipe the output to:
+Both functions return rows. Run them on a scheduler and route the output to:
 
-- PagerDuty / Opsgenie via webhook
+- PagerDuty or Opsgenie via webhook
 - A Slack channel via the Databricks SQL Alert framework
 - A separate `_alerts_fired` ChronoTable for historical analysis
 

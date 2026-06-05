@@ -2,12 +2,12 @@
 title: Lakebase CDF
 sidebar_label: Lakebase CDF
 sidebar_position: 5
-description: Shadow-sync functions that route partitioned writes through an unpartitioned shadow table for Lakebase CDF replication to Unity Catalog.
+description: Shadow-sync functions that route partitioned writes through an unpartitioned shadow table for Lakebase CDF sync to Unity Catalog.
 ---
 
 # Lakebase CDF
 
-Lakebase CDF can't replicate partitioned tables directly. LakeTS works around this by creating an unpartitioned **shadow table** in the `lakets_cdf` schema that mirrors every write — Lakebase CDF then replicates the shadow to a Unity Catalog Managed Table.
+Lakebase CDF can't sync partitioned tables directly. LakeTS works around this by creating an unpartitioned **shadow table** in the `lakets_cdf` schema that mirrors every write — Lakebase CDF then syncs the shadow to a Unity Catalog Managed Table.
 
 `enable_sync` and `disable_sync` work for **both ChronoTables and RollUps**. The shadow lives in `lakets_cdf`; the UC destination table is named `lb_<shadow>_history`.
 

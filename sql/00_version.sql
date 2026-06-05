@@ -3,6 +3,12 @@
 -- Manages install/upgrade lifecycle. Must be the first module executed.
 -- =============================================================================
 
+-- Suppress the "already exists" / "does not exist, skipping" notices that
+-- idempotent CREATE/DROP ... IF EXISTS statements emit. The version banner below
+-- and the closing summary restore NOTICE so they still print. (Add `psql -q` to
+-- also hide per-statement tags.)
+SET client_min_messages TO WARNING;
+
 CREATE SCHEMA IF NOT EXISTS lakets;
 
 CREATE TABLE IF NOT EXISTS lakets._version (
@@ -12,6 +18,7 @@ CREATE TABLE IF NOT EXISTS lakets._version (
 );
 
 -- Version guard: prevents downgrades, allows reinstall and upgrade.
+SET client_min_messages TO NOTICE;
 DO $$
 DECLARE
     v_installed       TEXT;
@@ -57,3 +64,6 @@ BEGIN
         END IF;
     END IF;
 END $$;
+
+-- Quiet the remaining modules; the closing summary restores NOTICE.
+SET client_min_messages TO WARNING;

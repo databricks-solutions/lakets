@@ -4,6 +4,9 @@
   "private": true,
   "description": "Documentation site for LakeTS",
   "scripts": {
+    "sync:changelog": "node sync-changelog.mjs",
+    "prestart": "node sync-changelog.mjs",
+    "prebuild": "node sync-changelog.mjs",
     "start": "docusaurus start",
     "build": "docusaurus build",
     "clear": "docusaurus clear",

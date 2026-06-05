@@ -11,7 +11,7 @@ ChronoTables are LakeTS's core abstraction — regular PostgreSQL tables convert
 
 **Why RANGE partitioning?** Native partition pruning on time predicates, instant `DROP PARTITION` for retention, and automatic insert routing without application logic.
 
-## `create_chronotable(p_table_name, p_time_column, p_chunk_interval, p_schema_name)`
+## `create_chronotable(p_table_name, p_time_column, p_chunk_interval, p_schema_name, p_if_not_exists)`
 
 Converts a regular table into a time-partitioned ChronoTable. The primary entry point for onboarding any time-series table.
 
@@ -21,6 +21,7 @@ Converts a regular table into a time-partitioned ChronoTable. The primary entry 
 | `p_time_column` | TEXT | — | Column used for partitioning (must be TIMESTAMPTZ, TIMESTAMP, or DATE) |
 | `p_chunk_interval` | INTERVAL | `'7 days'` | Size of each partition |
 | `p_schema_name` | TEXT | `'public'` | Schema of the table |
+| `p_if_not_exists` | BOOLEAN | `FALSE` | When `TRUE`, return the existing `chronotable_id` instead of raising if the table is already a ChronoTable |
 
 **Returns**: `INT` — the chronotable_id assigned in `_chronotable_registry`
 
@@ -46,20 +47,6 @@ CREATE TABLE sensor_data (
 SELECT lakets.create_chronotable('sensor_data', 'time', '1 day');
 -- Returns: 1 (chronotable_id)
 ```
-
-## `create_hypertable(p_table_name, p_time_column, p_chunk_interval, p_schema_name, p_if_not_exists)`
-
-The original v1 name for ChronoTable creation. Identical behavior to `create_chronotable` with an additional `p_if_not_exists` parameter.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `p_table_name` | TEXT | — | Table to convert |
-| `p_time_column` | TEXT | — | Time column (TIMESTAMPTZ, TIMESTAMP, or DATE) |
-| `p_chunk_interval` | INTERVAL | `'7 days'` | Partition interval |
-| `p_schema_name` | TEXT | `'public'` | Schema |
-| `p_if_not_exists` | BOOLEAN | `FALSE` | Skip if already a ChronoTable |
-
-**Returns**: `INT` — chronotable_id
 
 ## `set_chunk_interval(p_table_name, p_chunk_interval, p_schema_name)`
 
@@ -138,7 +125,7 @@ Fully removes a ChronoTable and everything LakeTS attached to it. The canonical 
 
 **Returns**: `VOID`
 
-**What it cleans up**, in order: the Last Value Cache (if enabled), Lakebase CDF shadow sync (if enabled), any RollUps built on the table, downsampling pipelines, the `_chronotable_registry` and `_chunk_metadata` entries, and finally the physical partitioned table itself (with `CASCADE`).
+**What it cleans up**, in order: the Last Value Cache (if enabled), Lakebase CDF shadow sync (if enabled), any RollUps built on the table, the `_chronotable_registry` and `_chunk_metadata` entries, and finally the physical partitioned table itself (with `CASCADE`).
 
 ```sql
 -- Remove a ChronoTable and all associated LakeTS state

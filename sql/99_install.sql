@@ -38,16 +38,13 @@
 -- Step 9: Last Value Cache
 \ir 09_lvc.sql
 
--- Step 10: Downsampling pipeline registry
-\ir 10_downsample.sql
-
 -- Step 11: Alert rules
 \ir 11_alerts.sql
 
 -- Step 12: Bulk ingest + Prometheus ingest
 \ir 12_ingest.sql
 
--- Step 13: Shadow sync for Lakehouse Sync
+-- Step 13: Shadow sync for Lakebase CDF
 \ir 13_shadow_sync.sql
 
 -- Step 14: RollUp Optimization — Modules 23-27

@@ -11,7 +11,7 @@ Sub-10 ms access to the latest state of each time series. Uses a trigger-maintai
 
 ## `enable_lvc(p_table_name, p_key_columns, p_value_columns, p_schema_name)`
 
-Creates the cache table `_lvc_{table}` and installs a trigger that upserts on every write to the source ChronoTable.
+Creates the cache table `_lvc_{table}` and installs an `AFTER INSERT` trigger that upserts the latest row on every insert to the source ChronoTable.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|

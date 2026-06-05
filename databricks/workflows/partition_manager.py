@@ -1,12 +1,14 @@
 """
 LakeTS Partition Manager Job
-Databricks Workflow job that pre-creates future partitions for all chronotables.
 
-Schedule: Every 6 hours (or customize per chunk_interval).
+Pre-creates future Lakebase partitions for every registered ChronoTable so
+inserts never hit a missing partition. Calls lakets._ensure_partitions per
+ChronoTable.
 
-Usage as Databricks Job:
-    Pass the Lakebase project name as the first job parameter (sys.argv[1]),
-    or set the LAKETS_PROJECT environment variable.
+Schedule: every 6 hours; tune to the smallest chunk_interval in use.
+
+Pass the Lakebase project name as the first job parameter (sys.argv[1]) or set
+LAKETS_PROJECT.
 """
 import logging
 import os
@@ -30,7 +32,10 @@ logger = logging.getLogger("lakets.partition_manager")
 
 
 def run(project_name: str):
-    """Pre-create future partitions for all registered chronotables."""
+    """Pre-create future partitions for every registered ChronoTable.
+
+    Returns the total number of partitions created across all ChronoTables.
+    """
     with lakebase_cursor(project_name) as cur:
         chronotables = fetch_all(cur, """
             SELECT id, schema_name, table_name, chunk_interval

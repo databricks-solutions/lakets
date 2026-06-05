@@ -49,11 +49,11 @@ DO $$ DECLARE v INTERVAL; BEGIN
     ASSERT v = '6 hours'::interval, 'T6 FAILED'; RAISE NOTICE 'T6 PASSED: interval=%', v;
 END $$;
 
--- T7: if_not_exists (backward compat via create_hypertable)
+-- T7: if_not_exists returns the existing ChronoTable id instead of erroring
 DO $$ DECLARE v1 INT; v2 INT; BEGIN
     SELECT id INTO v1 FROM lakets._chronotable_registry WHERE table_name='ct_test';
-    SELECT lakets.create_hypertable('ct_test', 'time', '1 day', 'public', TRUE) INTO v2;
-    ASSERT v1 = v2, 'T7 FAILED'; RAISE NOTICE 'T7 PASSED: backward compat if_not_exists';
+    SELECT lakets.create_chronotable('ct_test', 'time', '1 day', 'public', TRUE) INTO v2;
+    ASSERT v1 = v2, 'T7 FAILED'; RAISE NOTICE 'T7 PASSED: if_not_exists is idempotent';
 END $$;
 
 -- T8: _chronotable_registry view works

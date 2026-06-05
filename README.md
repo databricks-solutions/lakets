@@ -16,7 +16,7 @@ LakeTS is a time series toolkit for Databricks Lakebase — pure SQL (PL/pgSQL) 
 | **Multi-Metric Tables** | InfluxDB-style tag + field model with `create_metric_table()` |
 | **Time Series Functions** | `time_bucket`, `first`, `last`, `locf`, `interpolate`, `delta`, `rate`, `histogram` |
 | **Gap-filling** | `time_bucket_gapfill` + LEFT JOIN for continuous time series |
-| **RollUp Engine** | Incremental aggregates with per-bucket refresh, invalidation tracking, cold-tier re-aggregation, chunk-skip pruning, batch refresh, DAG orchestration, and Delta export |
+| **RollUp Engine** | Incremental aggregates with per-bucket refresh, invalidation tracking, chunk-skip pruning, batch refresh, and DAG orchestration |
 | **Tiering** | Policy-based eviction of cold partitions from Lakebase once CDF has flushed them to the Unity Catalog Managed Table |
 | **Retention** | Automated data lifecycle management across both tiers |
 | **Lakehouse Sync** | CDC-based replication to Delta via shadow table pattern |
@@ -24,7 +24,6 @@ LakeTS is a time series toolkit for Databricks Lakebase — pure SQL (PL/pgSQL) 
 | **Cardinality Management** | Tag cardinality explorer + threshold checks |
 | **Alert Rules** | SQL-native `alert_check()` + `alert_deadman()` on hot data |
 | **Bulk Ingest** | `ingest_batch()` for JSONB arrays + `ingest_prometheus()` |
-| **Downsampling Registry** | Multi-resolution pipeline metadata + `query_auto_resolution()` |
 | **Unity Catalog Sync** | Mirror ChronoTables and RollUps to Unity Catalog via Lakebase CDF (`enable_sync`) |
 | **Monitoring** | Prometheus-compatible metrics endpoint |
 | **Benchmarks** | TSBS-adapted benchmark suite |
@@ -44,7 +43,7 @@ curl -LO https://github.com/databricks-solutions/lakets/releases/latest/download
 sha256sum -c lakets.sql.sha256
 
 # Install on Lakebase
-psql -h <host> -U <user> -d <database> -f lakets.sql
+psql -q -h <host> -U <user> -d <database> -f lakets.sql
 ```
 
 ### Option B: From source
@@ -52,7 +51,7 @@ psql -h <host> -U <user> -d <database> -f lakets.sql
 ```bash
 git clone https://github.com/databricks-solutions/lakets.git
 cd lakets
-psql -h <host> -U <user> -d <database> -f sql/99_install.sql
+psql -q -h <host> -U <user> -d <database> -f sql/99_install.sql
 ```
 
 ### Option C: Via psycopg (Databricks notebooks)
@@ -74,7 +73,7 @@ SELECT version, installed_at, modules FROM lakets._version ORDER BY installed_at
 ### Uninstall
 
 ```bash
-psql -h <host> -U <user> -d <database> -f sql/00_uninstall.sql
+psql -q -h <host> -U <user> -d <database> -f sql/00_uninstall.sql
 ```
 
 ### Migrate from v0.1.0 to v0.1.1
@@ -82,7 +81,7 @@ psql -h <host> -U <user> -d <database> -f sql/00_uninstall.sql
 If you already have LakeTS v0.1.0 installed, use the migration runner instead of a full reinstall:
 
 ```bash
-psql -h <host> -U <user> -d <database> -f sql/migrate.sql
+psql -q -h <host> -U <user> -d <database> -f sql/migrate.sql
 ```
 
 The migration runner detects your installed version and applies only pending migrations. All migrations are idempotent — safe to re-run. After migration, verify with:
@@ -181,7 +180,7 @@ LakeTS ships a pre-built **Databricks AI/BI dashboard** for monitoring your inst
 
 | Page | Panels |
 |------|--------|
-| **Partition Health** | Hypertable count, chunk counts by status (active/tiered/dropped), chunk health table per hypertable, estimated row counts |
+| **Partition Health** | ChronoTable count, chunk counts by status (active/tiered/dropped), chunk health table per ChronoTable, estimated row counts |
 | **RollUp Monitoring** | Stale RollUp counter, dirty bucket total, watermark lag bar chart per RollUp (colored by refresh mode), invalidation log depth, full RollUp status table |
 | **LVC & System** | LVC-enabled table count, total cached series, database size (GB), LVC stats table, active policies by type |
 
@@ -201,7 +200,7 @@ All panels query live from Lakebase via the monitoring functions:
 -- All operational metrics (Prometheus-compatible key-value rows)
 SELECT * FROM lakets.lakets_metrics();
 
--- Per-hypertable chunk health summary
+-- Per-ChronoTable chunk health summary
 SELECT * FROM lakets.chunk_health();
 
 -- LVC cache occupancy per table

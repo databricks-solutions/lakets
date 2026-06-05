@@ -2,12 +2,12 @@
 title: Last Value Cache
 sidebar_label: Last Value Cache
 sidebar_position: 5
-description: Trigger-maintained current-state cache for sub-10ms "what's the latest reading?" queries.
+description: Trigger-maintained current-state cache for sub-10ms latest-reading queries.
 ---
 
 # Last Value Cache (LVC)
 
-Status widgets, "current value" tiles, and real-time alerts all need one thing: the most recent reading per key. Scanning a ChronoTable for `MAX(time)` on every dashboard refresh wastes work. The **Last Value Cache** maintains that "latest" row per key via a trigger, so reads hit a tiny cache table in sub-10ms.
+The Last Value Cache maintains the most recent row per key in a small table, updated by a trigger on every write. Status widgets, current-value tiles, and real-time alerts read from that table instead of scanning a ChronoTable for `MAX(time)` on each refresh, which keeps lookups in the sub-10ms range.
 
 ## Enable LVC
 

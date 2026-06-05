@@ -15,7 +15,7 @@ Install LakeTS on a Lakebase instance, create a ChronoTable, run your first time
 ## Prerequisites
 
 - A Databricks workspace with Lakebase enabled
-- A Lakebase **autoscale** instance running **PostgreSQL 17 or later** (LakeTS is not supported on provisioned instances or earlier Postgres versions)
+- A Lakebase **autoscale** instance running **PostgreSQL 16 or later** (LakeTS is not supported on provisioned instances or earlier Postgres versions)
 - A PostgreSQL client (`psql`, DBeaver, or any Postgres-compatible tool)
 
 ## 1. Install LakeTS
@@ -32,7 +32,7 @@ curl -LO https://github.com/databricks-solutions/lakets/releases/latest/download
 curl -LO https://github.com/databricks-solutions/lakets/releases/latest/download/lakets.sql.sha256
 sha256sum -c lakets.sql.sha256
 
-psql -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f lakets.sql
+psql -q -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f lakets.sql
 ```
 
 </TabItem>
@@ -44,7 +44,7 @@ Clone the repo and run the bundled single-file installer:
 git clone https://github.com/databricks-solutions/lakets.git
 cd lakets
 
-psql -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f dist/lakets.sql
+psql -q -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f dist/lakets.sql
 ```
 
 </TabItem>
@@ -56,7 +56,7 @@ If you want to install module-by-module (e.g. to skip optional modules), run the
 git clone https://github.com/databricks-solutions/lakets.git
 cd lakets
 
-psql -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f sql/99_install.sql
+psql -q -h <your-lakebase-host> -U <user>@databricks.com -d <database> -f sql/99_install.sql
 ```
 
 </TabItem>
@@ -164,8 +164,7 @@ You already created your first ChronoTable above. Before touching anything else,
 This is the most important step and the easiest one to skip. Choose retention and tiering policies *before* you accumulate data:
 
 - **Hot only** — keep everything in Lakebase. Add a [retention policy](../how-to/lifecycle.md#retention--drop-old-chunks-entirely) so old chunks drop.
-- **Hot + cold** — recent data in Lakebase, history in Unity Catalog. Set up [Lakebase CDF](./lakebase-cdf-setup.md) for replication and a [tiered retention policy](../how-to/lifecycle.md#tiered-retention--tier-then-drop) for the lifecycle.
-- **Long horizons** — add [downsampling pipelines](../how-to/downsampling.md) for multi-year aggregates.
+- **Hot + cold** — recent data in Lakebase, history in Unity Catalog. Set up [Lakebase CDF](./lakebase-cdf-setup.md) for hot-to-cold sync and a [tiered retention policy](../how-to/lifecycle.md#tiered-retention--tier-then-retain) for the lifecycle.
 
 ### Phase 3 — build your read patterns
 
@@ -173,7 +172,7 @@ Now you can think about how the application or dashboard reads the data:
 
 - **Dashboards over recent data** — define [RollUps](../how-to/rollups.md) so dashboards don't re-scan raw rows
 - **"What's the current value?" widgets** — turn on the [Last Value Cache](../how-to/last-value-cache.md) for sub-10ms reads
-- **Long-window queries** — use the cold tier through Lakehouse Federation
+- **Long-window queries** — query the cold tier directly in Databricks (Spark / Databricks SQL)
 - **Real-time alerts** — add [threshold and deadman alerts](../how-to/alerts.md)
 - **High-throughput writes** — use [`ingest_batch`](../how-to/bulk-ingest.md) instead of per-row inserts
 - **Cross-team analytics** — [sync RollUps to Unity Catalog](../how-to/export-to-uc.md) via Lakebase CDF so Spark, BI, and ML can read them
@@ -182,7 +181,6 @@ Now you can think about how the application or dashboard reads the data:
 ### Reference + further reading
 
 - [How It Works](./how-it-works/index.md) — the internals of ChronoTables, RollUps, and Lakebase CDF
-- [Reference](../reference/index.md) — full catalog of 73 functions, 2 aggregates, 6 triggers, 9 metadata tables — organized by topic
-- [Life of a sensor reading](../examples/sensor-reading-journey.md) — end-to-end worked example
+- [Reference](../reference/index.md) — full catalog of 69 functions, 2 aggregates, 6 triggers, 8 metadata tables — organized by topic
 - [Troubleshooting](../troubleshooting.md) — when something doesn't behave the way you expect
 - [Databricks workflows](https://github.com/databricks-solutions/lakets/blob/main/databricks/bundles/databricks.yml) — automated partition management, tiering, retention, and aggregate refresh

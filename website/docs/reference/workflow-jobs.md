@@ -14,26 +14,13 @@ All jobs run on **serverless compute** — there is no cluster to provision. Eac
 | Job | Schedule | What it does |
 |-----|----------|--------------|
 | **Partition Manager** | Every 6 h | Calls `_ensure_partitions()` — pre-creates future partitions |
-| **Tiering** | Daily 2 AM | `_get_chunks_to_tier()` → `tier_chunk()` per candidate — drops cold partitions whose data CDF has flushed to UC (pure Lakebase SQL, no Spark) |
-| **Retention** | Daily 3 AM | `execute_retention()` — drops expired chunks in Lakebase and the UC Managed Table |
-| **RollUp Refresh** | Every 15 min | `refresh_rollup()` — incremental hot-tier refresh |
-| **Cold RollUp Refresh** | On-demand (no fixed schedule) | Re-aggregates already-tiered (cold) source data from Unity Catalog via a SQL warehouse and writes the corrected aggregates back to the Lakebase RollUp Table |
+| **Tiering** | Daily 2 AM | `_get_chunks_to_tier()` → `tier_chunk()` per candidate — validates cold chunks are durable in UC and flags them `tiered` (does not drop; pure Lakebase SQL, no Spark) |
+| **Retention** | Daily 3 AM | `execute_retention()` — drops expired Lakebase partitions (gated on UC durability, fail-closed); never deletes from the UC Managed Table |
+| **RollUp Refresh** | Every 15 min | `refresh_rollup_cascade()` — refreshes RollUps in dependency (DAG) order, children before parents |
 
 Each job is idempotent and stateless — re-running it cannot corrupt data. Lakebase remains the source of truth for state (registries, watermarks, invalidation log); the jobs read that state and execute against it.
 
-### When to run Cold RollUp Refresh
-
-The other four jobs run on a schedule; **Cold RollUp Refresh is on-demand** because it only has work when historical data that has *already been tiered out of Lakebase* changes. Run it after:
-
-- **late-arriving data** for a time window whose chunk was already tiered,
-- an **ETL correction / restatement / backfill** that rewrites a past period in the Unity Catalog Managed Table, or
-- a manual `lakets.invalidate_rollup_range(...)` over an old, now-cold window.
-
-The 15-minute hot **RollUp Refresh** skips cold buckets (their source rows are no longer in Postgres), so this job is the only thing that propagates such corrections into RollUps. If your data is append-only / immutable once tiered (typical for metrics and logs), it has nothing to do and can be left unscheduled. See [Hot-tier vs cold-tier refresh](../guides/how-it-works/rollups.md#hot-tier-vs-cold-tier-refresh) for the full mechanics and a worked example.
-
-```bash
-databricks bundle run lakets_cold_rollup_refresh -t prod
-```
+RollUps refresh only from Lakebase-resident source data. Buckets whose source partition has been dropped are no longer re-aggregated — the RollUp keeps its last computed value. See [How RollUps work](../guides/how-it-works/rollups.md) for the mechanics.
 
 ## Authentication & permissions
 
@@ -48,7 +35,7 @@ cred = w.postgres.generate_database_credential(endpoint=endpoint)
 # so any reconnect transparently gets a fresh, non-expired token (~1 h lifetime).
 ```
 
-The `lakebase_project` bundle variable names the project (e.g. `lakets-tiering-test`); set `LAKETS_LAKEBASE_ENDPOINT` to skip resolution and pin a specific endpoint path.
+The `lakebase_project` bundle variable names the project; set `LAKETS_LAKEBASE_ENDPOINT` to skip resolution and pin a specific endpoint path.
 
 You need a service principal to run these jobs, **and that service principal must have permission on the Lakebase project to perform the operations** the jobs execute (creating/dropping partitions, refreshing RollUps, enforcing retention).
 
@@ -98,6 +85,6 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public, lakets
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "<sp-application-id>";
 ```
 
-`CREATE` on `public`/`lakets` lets the Partition Manager add partitions and lets Tiering/Retention drop them; `EXECUTE` on `lakets` functions covers `tier_chunk()`, `_ensure_partitions()`, `refresh_rollup()`, and friends. If your install scripts ran as a different owner, the simplest alternative is to make the service principal the **owner** of the LakeTS objects (or a member of the owning role).
+`CREATE` on `public`/`lakets` lets the Partition Manager add partitions and lets Retention drop them (Tiering only flags chunks); `EXECUTE` on `lakets` functions covers `tier_chunk()`, `execute_retention()`, `_ensure_partitions()`, `refresh_rollup_cascade()`, and friends. If your install scripts ran as a different owner, the simplest alternative is to make the service principal the **owner** of the LakeTS objects (or a member of the owning role).
 
 By default the helper uses the running identity (`current_user`) as the Postgres role. If your Lakebase role name differs from the service principal's application ID, override it with the `LAKETS_PG_ROLE` environment variable on the job.

@@ -2,7 +2,7 @@
 -- LakeTS RollUp Engine
 -- Incrementally-maintained time-bucketed aggregations over ChronoTables.
 -- Backed by regular tables (not materialized views) for surgical per-bucket
--- refresh. Supports hot-tier (Lakebase) and cold-tier (Delta Lake) data.
+-- refresh. RollUps are maintained from Lakebase-resident source data.
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -168,12 +168,11 @@ BEGIN
         v_rec.rollup_table, v_query, v_bucket_col, v_dirty_from
     );
 
-    -- Phase 2: Batch refresh of hot-tier invalidation log entries (M24)
+    -- Phase 2: Batch refresh of invalidated buckets below the watermark (M24)
     SELECT array_agg(DISTINCT bucket_start ORDER BY bucket_start)
     INTO v_dirty_buckets
     FROM lakets._rollup_invalidation_log
     WHERE rollup_id = v_rec.id
-      AND tier = 'hot'
       AND bucket_start < v_dirty_from;
 
     IF v_dirty_buckets IS NOT NULL AND array_length(v_dirty_buckets, 1) > 0 THEN
@@ -183,9 +182,9 @@ BEGIN
         );
     END IF;
 
-    -- Clear only processed hot-tier entries (scoped to avoid racing with concurrent writes)
+    -- Clear processed entries (scoped to avoid racing with concurrent writers)
     DELETE FROM lakets._rollup_invalidation_log
-    WHERE rollup_id = v_rec.id AND tier = 'hot'
+    WHERE rollup_id = v_rec.id
       AND bucket_start < v_dirty_from;
 
     -- Advance watermark using detected bucket column
@@ -359,11 +358,11 @@ BEGIN
                 INTO v_bucket_start USING NEW;
         END IF;
 
-        -- Upsert into invalidation log (tier = 'hot' for Lakebase mutations)
-        INSERT INTO lakets._rollup_invalidation_log (rollup_id, bucket_start, tier)
-        VALUES (v_rec.id, v_bucket_start, 'hot')
+        -- Record the affected bucket as dirty
+        INSERT INTO lakets._rollup_invalidation_log (rollup_id, bucket_start)
+        VALUES (v_rec.id, v_bucket_start)
         ON CONFLICT (rollup_id, bucket_start) DO UPDATE
-            SET invalidated_at = now(), tier = 'hot';
+            SET invalidated_at = now();
     END LOOP;
 
     IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
@@ -486,14 +485,19 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- invalidate_rollup_range: Manually marks a time range as dirty.
--- Use for bulk imports (COPY bypasses triggers) or cold-tier corrections.
+-- invalidate_rollup_range: Manually marks a time range as dirty so the next
+-- refresh re-aggregates it. Use after a bulk import (COPY bypasses per-row
+-- triggers) or a correction to historical data still resident in Lakebase.
+-- Buckets whose source partition has been dropped from Lakebase are skipped:
+-- they cannot be re-aggregated, so the RollUp keeps its last computed value.
 -- ---------------------------------------------------------------------------
+-- DROP first: the signature dropped the old p_tier argument, and CREATE OR
+-- REPLACE would leave the 4-arg overload in place (making a 3-arg call ambiguous).
+DROP FUNCTION IF EXISTS lakets.invalidate_rollup_range(TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT);
 CREATE OR REPLACE FUNCTION lakets.invalidate_rollup_range(
     p_name TEXT,
     p_from TIMESTAMPTZ,
-    p_to   TIMESTAMPTZ,
-    p_tier TEXT DEFAULT NULL  -- NULL = auto-detect from chunk metadata (M26)
+    p_to   TIMESTAMPTZ
 )
 RETURNS INT
 LANGUAGE plpgsql
@@ -501,7 +505,6 @@ AS $$
 DECLARE
     v_rec RECORD;
     v_bucket TIMESTAMPTZ;
-    v_tier TEXT;
     v_count INT := 0;
 BEGIN
     SELECT r.id, r.bucket_interval, r.source_chronotable_id
@@ -520,20 +523,21 @@ BEGIN
             v_rec.bucket_interval
         )
     LOOP
-        -- Auto-detect tier if not specified (M26)
-        IF p_tier IS NULL THEN
-            v_tier := COALESCE(
-                lakets._resolve_bucket_tier(v_rec.source_chronotable_id, v_bucket),
-                'hot'
-            );
-        ELSE
-            v_tier := p_tier;
+        -- Skip buckets whose source partition has been dropped from Lakebase;
+        -- re-aggregating them would scan no source rows and zero the RollUp.
+        IF EXISTS (
+            SELECT 1 FROM lakets._chunk_metadata cm
+            WHERE cm.chronotable_id = v_rec.source_chronotable_id
+              AND v_bucket >= cm.range_start AND v_bucket < cm.range_end
+              AND cm.status = 'dropped'
+        ) THEN
+            CONTINUE;
         END IF;
 
-        INSERT INTO lakets._rollup_invalidation_log (rollup_id, bucket_start, tier)
-        VALUES (v_rec.id, v_bucket, v_tier)
+        INSERT INTO lakets._rollup_invalidation_log (rollup_id, bucket_start)
+        VALUES (v_rec.id, v_bucket)
         ON CONFLICT (rollup_id, bucket_start) DO UPDATE
-            SET invalidated_at = now(), tier = v_tier;
+            SET invalidated_at = now();
         v_count := v_count + 1;
     END LOOP;
 

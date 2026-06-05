@@ -4,7 +4,7 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
--- _ensure_partitions: Pre-creates partitions for a hypertable.
+-- _ensure_partitions: Pre-creates partitions for a ChronoTable.
 -- Supports both relative (past/future count) and explicit range.
 -- Idempotent — skips partitions that already exist.
 -- ---------------------------------------------------------------------------
@@ -35,7 +35,7 @@ BEGIN
     WHERE id = p_chronotable_id;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Hypertable with id % not found', p_chronotable_id;
+        RAISE EXCEPTION 'ChronoTable with id % not found', p_chronotable_id;
     END IF;
 
     -- Use explicit range if provided, otherwise calculate from now
@@ -89,10 +89,10 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- create_hypertable: Converts a regular table to a time-partitioned table.
+-- create_chronotable: Converts a regular table to a time-partitioned table.
 -- Scans existing data to create partitions covering the full range.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION lakets.create_hypertable(
+CREATE OR REPLACE FUNCTION lakets.create_chronotable(
     p_table_name TEXT,
     p_time_column TEXT,
     p_chunk_interval INTERVAL DEFAULT '7 days',
@@ -245,7 +245,7 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- show_chunks: Lists partitions with metadata for a hypertable.
+-- show_chunks: Lists partitions with metadata for a ChronoTable.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION lakets.show_chunks(
     p_table_name TEXT,
@@ -339,7 +339,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- drop_chronotable: Drops a ChronoTable and all associated objects.
 -- Cleans up: LVC cache, shadow sync, rollups (views + tables), policies,
--- downsample pipelines, chunk metadata, and the registry entry.
+-- chunk metadata, and the registry entry.
 -- The physical table is dropped with CASCADE (removes all partitions).
 -- Idempotent — safe to call even if some objects were already removed.
 -- ---------------------------------------------------------------------------
@@ -355,7 +355,6 @@ DECLARE
     v_rollup RECORD;
     v_lvc RECORD;
     v_shadow TEXT;
-    v_ds RECORD;
 BEGIN
     -- Look up the ChronoTable
     SELECT id INTO v_ct_id
@@ -417,39 +416,14 @@ BEGIN
         RAISE NOTICE 'Dropped shadow table: %', v_shadow;
     END IF;
 
-    -- 4. Remove downsample pipelines referencing this table
-    FOR v_ds IN
-        SELECT id, name
-        FROM lakets._downsample_registry
-        WHERE source_table = p_table_name AND source_schema = p_schema_name
-    LOOP
-        DELETE FROM lakets._downsample_registry WHERE id = v_ds.id;
-        RAISE NOTICE 'Removed downsample pipeline: %', v_ds.name;
-    END LOOP;
-
-    -- 5. Delete the registry entry (ON DELETE CASCADE cleans:
+    -- 4. Delete the registry entry (ON DELETE CASCADE cleans:
     --    _chunk_metadata, _rollup_registry, _rollup_invalidation_log,
     --    _policy_registry, _lvc_registry)
     DELETE FROM lakets._chronotable_registry WHERE id = v_ct_id;
 
-    -- 6. Drop the physical table (CASCADE drops all partitions)
+    -- 5. Drop the physical table (CASCADE drops all partitions)
     EXECUTE format('DROP TABLE IF EXISTS %I.%I CASCADE', p_schema_name, p_table_name);
 
     RAISE NOTICE 'Dropped ChronoTable: %.%', p_schema_name, p_table_name;
 END;
-$$;
-
--- ---------------------------------------------------------------------------
--- create_chronotable: V2 alias for create_hypertable.
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION lakets.create_chronotable(
-    p_table_name TEXT,
-    p_time_column TEXT,
-    p_chunk_interval INTERVAL DEFAULT '7 days',
-    p_schema_name TEXT DEFAULT 'public'
-)
-RETURNS INT
-LANGUAGE sql
-AS $$
-    SELECT lakets.create_hypertable(p_table_name, p_time_column, p_chunk_interval, p_schema_name);
 $$;

@@ -1,9 +1,10 @@
 -- =============================================================================
 -- LakeTS Tiering Policies
--- A tiering policy drops cold ChronoTable partitions to reclaim Lakebase
--- storage. The data is already durable in the Unity Catalog Managed Table via
--- Lakebase CDF; tiering only evicts partitions once CDF has flushed past them.
--- Executed by the Databricks tiering job.
+-- A tiering policy VALIDATES that cold ChronoTable partitions are durable in the
+-- Unity Catalog Managed Table (via Lakebase CDF) and flags them 'tiered' (ready
+-- to drop). The data stays in Lakebase and remains queryable; the partition is
+-- physically removed later by retention at drop_after. Executed by the
+-- Databricks tiering job. tier_chunk validates and flags; it never drops.
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -148,7 +149,8 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- add_tiering_policy: register a tiering policy. Chunks older than p_after are
--- eligible for eviction once CDF has flushed their data to UC.
+-- validated and flagged 'tiered' (ready to drop) once CDF has flushed their data
+-- to UC; the partitions themselves are dropped later by retention at drop_after.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION lakets.add_tiering_policy(
     p_table_name TEXT,
@@ -173,8 +175,8 @@ BEGIN
     END IF;
 
     IF NOT COALESCE(v_sync_enabled, FALSE) THEN
-        RAISE NOTICE 'Table %.% is not CDF-synced yet; tiering will not evict any '
-            'partitions until enable_sync is called and CDF is streaming.',
+        RAISE NOTICE 'Table %.% is not CDF-synced yet; tiering will not flag any '
+            'chunks until enable_sync is called and CDF is streaming.',
             p_schema_name, p_table_name;
     END IF;
 
@@ -199,11 +201,11 @@ BEGIN
     PERFORM lakets._install_tiering_write_tracking(p_schema_name, p_table_name);
 
     -- Backfill: stamp existing active chunks with the current WAL head as a
-    -- conservative upper bound on their writes. A chunk drops only once CDF has
-    -- flushed past this mark, so pre-policy data is never dropped before it is
-    -- provably durable in UC. (NULL last_write_lsn is treated as "cannot prove
-    -- durable" by tier_chunk, so this backfill is what makes existing chunks
-    -- eligible at all.)
+    -- conservative upper bound on their writes. A chunk is flagged 'tiered' only
+    -- once CDF has flushed past this mark, so pre-policy data is never marked
+    -- durable before it actually is. (NULL last_write_lsn is treated as "cannot
+    -- prove durable" by tier_chunk, so this backfill is what makes existing
+    -- chunks eligible at all.)
     UPDATE lakets._chunk_metadata
     SET last_write_lsn = pg_current_wal_lsn()
     WHERE chronotable_id = v_chronotable_id
@@ -266,9 +268,9 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- _get_chunks_to_tier: candidate chunks for eviction — active, older than the
--- policy 'after' interval, AND the table's shadow is STREAMING in CDF. The
--- exact per-chunk durability gate is enforced in tier_chunk at drop time.
+-- _get_chunks_to_tier: candidate chunks to validate — active, older than the
+-- policy 'after' interval, AND the table's shadow is STREAMING in CDF. The exact
+-- per-chunk durability check is enforced in tier_chunk before it flags a chunk.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION lakets._get_chunks_to_tier(
     p_table_name TEXT,
@@ -311,15 +313,18 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- tier_chunk: drop a chunk's partition and mark it tiered, but ONLY if CDF has
--- provably flushed past every write to THAT chunk:
+-- tier_chunk: VALIDATE that Lakebase CDF has durably flushed every write to a
+-- chunk into the Unity Catalog Managed Table, then flag the chunk 'tiered'
+-- (ready to drop). The chunk's data STAYS in Lakebase and remains fully
+-- queryable -- the partition is physically removed later by retention, at
+-- drop_after. Gate (all must hold):
 --   shadow is STREAMING  AND  chunk.last_write_lsn IS NOT NULL
 --   AND  committed_lsn >= chunk.last_write_lsn.
 -- The comparison is against the chunk's own recorded write position (stamped by
 -- _stamp_tiered_chunk_lsn), NOT the global WAL head -- the head keeps advancing
 -- from unrelated activity while a quiescent shadow's committed_lsn freezes, so a
--- head comparison would never pass for the cold chunks we want to evict.
--- Returns TRUE if dropped, FALSE if deferred (caller retries next run).
+-- head comparison would never pass for the cold chunks we want to validate.
+-- Returns TRUE if flagged, FALSE if deferred (caller retries next run).
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION lakets.tier_chunk(p_chunk_name TEXT)
 RETURNS BOOLEAN
@@ -330,7 +335,6 @@ DECLARE
     v_shadow TEXT;
     v_committed PG_LSN;
     v_chunk_lsn PG_LSN;
-    v_parts TEXT[];
 BEGIN
     SELECT cm.chronotable_id, cm.last_write_lsn INTO v_chronotable_id, v_chunk_lsn
     FROM lakets._chunk_metadata cm
@@ -361,15 +365,9 @@ BEGIN
         RETURN FALSE;
     END IF;
 
-    -- Safe to drop: every write to this chunk is at or below committed_lsn, i.e.
-    -- provably durable in the Unity Catalog Managed Table.
-    v_parts := string_to_array(p_chunk_name, '.');
-    IF array_length(v_parts, 1) = 2 THEN
-        EXECUTE format('DROP TABLE IF EXISTS %I.%I', v_parts[1], v_parts[2]);
-    ELSE
-        EXECUTE format('DROP TABLE IF EXISTS %I', p_chunk_name);
-    END IF;
-
+    -- Validated: every write to this chunk is at or below committed_lsn, i.e.
+    -- provably durable in the Unity Catalog Managed Table. Flag it ready to drop;
+    -- the data stays in Lakebase until retention removes it at drop_after.
     UPDATE lakets._chunk_metadata
     SET status = 'tiered', tiered_at = now()
     WHERE chunk_name = p_chunk_name;
@@ -445,17 +443,19 @@ BEGIN
         after := r.after_txt;
         last_run_at := r.lra;
 
-        -- pending = active AND aged out. v_max_pending_lsn is the furthest WAL
-        -- position CDF must flush past to clear the whole pending backlog;
-        -- v_pending_unstamped counts pending chunks with no recorded position
-        -- (cannot be proven durable, so they block "caught_up").
+        -- tiered  = validated durable in UC, still resident in Lakebase (ready to drop).
+        -- pending = active AND aged past tier_after, awaiting validation.
+        -- reclaimable_bytes = tiered chunks (resident, droppable at drop_after).
+        -- reclaimed_bytes   = dropped chunks (Lakebase storage already freed).
+        -- v_max_pending_lsn is the furthest WAL position CDF must flush past to
+        -- validate the whole pending backlog; v_pending_unstamped counts pending
+        -- chunks with no recorded position (cannot be proven durable).
         SELECT
             count(*) FILTER (WHERE cm.status = 'active'),
             count(*) FILTER (WHERE cm.status = 'tiered'),
             count(*) FILTER (WHERE cm.status = 'active' AND cm.range_end <= now() - v_after),
-            COALESCE(sum(cm.size_bytes) FILTER (
-                WHERE cm.status = 'active' AND cm.range_end <= now() - v_after), 0),
             COALESCE(sum(cm.size_bytes) FILTER (WHERE cm.status = 'tiered'), 0),
+            COALESCE(sum(cm.size_bytes) FILTER (WHERE cm.status = 'dropped'), 0),
             max(cm.last_write_lsn) FILTER (
                 WHERE cm.status = 'active' AND cm.range_end <= now() - v_after),
             count(*) FILTER (

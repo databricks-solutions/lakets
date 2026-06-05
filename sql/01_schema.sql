@@ -1,15 +1,11 @@
 -- =============================================================================
 -- LakeTS Core Schema
--- Metadata tables for hypertable management, chunk tracking, and policies.
+-- Metadata tables for ChronoTable management, chunk tracking, and policies.
 -- Requires: 00_version.sql (creates the lakets schema)
 --
--- Multi-tenant install: pass -v lakets_schema=<name> to psql to install
--- metadata under a custom schema instead of the default 'lakets'.
--- Example: psql -v lakets_schema=lakets_dev -f sql/99_install.sql
--- If the variable is not set, psql substitutes it as the literal string
--- ':lakets_schema' which is intentionally not used -- all objects use the
--- 'lakets' schema by default, hardcoded for compatibility with v0.1.x.
--- Full parameterization is planned for v0.3.0 (see docs/design/multi-tenant-namespacing.md).
+-- All objects are hardcoded to the 'lakets' schema in v0.1.x. A custom-schema
+-- (-v lakets_schema=<name>) install is planned for v0.3.0; the variable is read
+-- but not yet honored. See docs/design/multi-tenant-namespacing.md.
 -- =============================================================================
 
 -- Dedicated, partition-free schema for CDF shadow tables.
@@ -37,7 +33,7 @@ CREATE TABLE IF NOT EXISTS lakets._chronotable_registry (
 );
 
 -- ---------------------------------------------------------------------------
--- Chunk Metadata: tracks individual partitions (chunks) of each hypertable
+-- Chunk Metadata: tracks individual partitions (chunks) of each ChronoTable
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS lakets._chunk_metadata (
     id SERIAL PRIMARY KEY,
@@ -57,7 +53,7 @@ CREATE TABLE IF NOT EXISTS lakets._chunk_metadata (
     CONSTRAINT valid_status CHECK (status IN ('active', 'tiered', 'dropped'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_chunk_metadata_hypertable
+CREATE INDEX IF NOT EXISTS idx_chunk_metadata_chronotable
     ON lakets._chunk_metadata(chronotable_id);
 
 CREATE INDEX IF NOT EXISTS idx_chunk_metadata_range
@@ -101,14 +97,12 @@ CREATE TABLE IF NOT EXISTS lakets._rollup_invalidation_log (
     id             SERIAL PRIMARY KEY,
     rollup_id      INT NOT NULL REFERENCES lakets._rollup_registry(id) ON DELETE CASCADE,
     bucket_start   TIMESTAMPTZ NOT NULL,
-    tier           TEXT NOT NULL DEFAULT 'hot',
     invalidated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT uq_rollup_invalidation UNIQUE (rollup_id, bucket_start),
-    CONSTRAINT valid_tier CHECK (tier IN ('hot', 'cold'))
+    CONSTRAINT uq_rollup_invalidation UNIQUE (rollup_id, bucket_start)
 );
 
 CREATE INDEX IF NOT EXISTS idx_rollup_invalidation_rollup_id
-    ON lakets._rollup_invalidation_log(rollup_id, tier, bucket_start);
+    ON lakets._rollup_invalidation_log(rollup_id, bucket_start);
 
 -- ---------------------------------------------------------------------------
 -- LVC Registry: tracks Last Value Cache configs per ChronoTable
@@ -122,23 +116,6 @@ CREATE TABLE IF NOT EXISTS lakets._lvc_registry (
     enabled         BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (chronotable_id)
-);
-
--- ---------------------------------------------------------------------------
--- Downsample Registry: tracks multi-resolution pipeline definitions
--- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS lakets._downsample_registry (
-    id              SERIAL PRIMARY KEY,
-    name            TEXT UNIQUE NOT NULL,
-    source_table    TEXT NOT NULL,
-    source_schema   TEXT NOT NULL DEFAULT 'public',
-    intervals       INTERVAL[] NOT NULL,
-    retention       INTERVAL[] NOT NULL,
-    agg_expressions TEXT[] NOT NULL,
-    group_by        TEXT[],
-    delta_catalog   TEXT NOT NULL DEFAULT 'main',
-    delta_schema    TEXT NOT NULL DEFAULT 'lakets_rollups',
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ---------------------------------------------------------------------------

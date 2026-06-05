@@ -36,7 +36,6 @@ MODULES=(
     "07_monitoring.sql"
     "08_metric_table.sql"
     "09_lvc.sql"
-    "10_downsample.sql"
     "11_alerts.sql"
     "12_ingest.sql"
     "13_shadow_sync.sql"
@@ -112,6 +111,9 @@ EOF
 
 # Write the verification block (dollar-quoted, no variable expansion)
 cat >> "$OUTPUT" << 'FOOTER_END'
+
+-- Restore NOTICE so the success summary prints (install body is quieted above).
+SET client_min_messages TO NOTICE;
 
 DO $$
 DECLARE

@@ -2,7 +2,7 @@
 -- LakeTS Shadow Sync Tests
 -- =============================================================================
 
--- Setup: create hypertable
+-- Setup: create ChronoTable
 DROP TABLE IF EXISTS public.sync_test CASCADE;
 DROP TABLE IF EXISTS lakets_cdf._shadow_sync_test;
 DELETE FROM lakets._chunk_metadata WHERE chronotable_id IN (
@@ -16,7 +16,7 @@ CREATE TABLE public.sync_test (
     reading DOUBLE PRECISION
 );
 INSERT INTO public.sync_test VALUES (now(), 'setup', 0.0);
-SELECT lakets.create_hypertable('sync_test', 'time', '1 day');
+SELECT lakets.create_chronotable('sync_test', 'time', '1 day');
 
 -- Test 1: enable_sync creates shadow table
 DO $$
@@ -84,8 +84,13 @@ BEGIN
     ASSERT v_sync = FALSE, 'TEST 5a FAILED: sync still enabled';
     ASSERT v_shadow IS NULL, 'TEST 5b FAILED: shadow not cleared';
 
-    SELECT count(*) INTO v_trig_count FROM pg_trigger WHERE tgname = 'trg_lakets_sync';
-    ASSERT v_trig_count = 0, format('TEST 5c FAILED: %s triggers remain', v_trig_count);
+    -- Scope to sync_test's own parent + partitions; trg_lakets_sync may also
+    -- exist on other synced tables in the same database (test isolation).
+    SELECT count(*) INTO v_trig_count
+    FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+    WHERE t.tgname = 'trg_lakets_sync'
+      AND (c.relname = 'sync_test' OR c.relname LIKE 'sync\_test\_%');
+    ASSERT v_trig_count = 0, format('TEST 5c FAILED: %s triggers remain on sync_test', v_trig_count);
     RAISE NOTICE 'TEST 5 PASSED: disable_sync cleaned up';
 END $$;
 

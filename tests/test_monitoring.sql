@@ -45,7 +45,7 @@ BEGIN
     -- Verify column values for our test table
     SELECT total_chunks, active_chunks INTO v_total_chunks, v_active_chunks
     FROM lakets.chunk_health()
-    WHERE hypertable = 'public.mon_test';
+    WHERE chronotable = 'public.mon_test';
 
     ASSERT v_total_chunks > 0, format('expected total_chunks > 0, got %s', v_total_chunks);
     ASSERT v_active_chunks > 0, format('expected active_chunks > 0, got %s', v_active_chunks);
@@ -101,7 +101,7 @@ BEGIN
 
         SELECT tiered_chunks INTO v_tiered
         FROM lakets.chunk_health()
-        WHERE hypertable = 'public.mon_tier_test';
+        WHERE chronotable = 'public.mon_tier_test';
 
         ASSERT v_tiered >= 1, format('expected >= 1 tiered chunk, got %s', v_tiered);
         RAISE NOTICE 'T5 PASSED: chunk_health reports % tiered chunks', v_tiered;
@@ -129,7 +129,7 @@ BEGIN
     FROM lakets.lakets_metrics();
 
     ASSERT 'lakets_database_size_bytes' = ANY(v_names), 'missing lakets_database_size_bytes';
-    ASSERT 'lakets_hypertables_total' = ANY(v_names), 'missing lakets_hypertables_total';
+    ASSERT 'lakets_chronotables_total' = ANY(v_names), 'missing lakets_chronotables_total';
     RAISE NOTICE 'T6 PASSED: metrics include expected names: %', v_names;
 END $$;
 
@@ -152,7 +152,7 @@ BEGIN
 
     SELECT oldest_active, newest_active INTO v_oldest, v_newest
     FROM lakets.chunk_health()
-    WHERE hypertable = 'public.mon_ts_test';
+    WHERE chronotable = 'public.mon_ts_test';
 
     ASSERT v_oldest IS NOT NULL, 'oldest_active is NULL';
     ASSERT v_newest IS NOT NULL, 'newest_active is NULL';

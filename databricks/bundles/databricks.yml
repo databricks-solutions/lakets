@@ -4,12 +4,6 @@ bundle:
 variables:
   lakebase_project:
     description: "Name of the Lakebase Autoscaling project (resolved to its primary read-write endpoint)"
-  delta_catalog:
-    description: "Unity Catalog catalog for tiered data"
-    default: "main"
-  delta_schema:
-    description: "Unity Catalog schema for tiered data"
-    default: "lakets"
   service_principal_name:
     description: >-
       Application ID of the service principal the jobs run as. It must hold a
@@ -31,7 +25,7 @@ resources:
   jobs:
     lakets_partition_manager:
       name: "LakeTS - Partition Manager"
-      description: "Pre-creates future partitions for all LakeTS hypertables"
+      description: "Pre-creates future partitions for all LakeTS ChronoTables"
       schedule:
         quartz_cron_expression: "0 0 */6 * * ?"  # Every 6 hours
         timezone_id: "UTC"
@@ -70,7 +64,7 @@ resources:
 
     lakets_retention:
       name: "LakeTS - Retention"
-      description: "Drops expired data from Lakebase and Delta Lake"
+      description: "Drops expired ChronoTable partitions from Lakebase (gated on CDF durability)"
       schedule:
         quartz_cron_expression: "0 0 3 * * ?"  # Daily at 3 AM UTC
         timezone_id: "UTC"
@@ -96,20 +90,6 @@ resources:
             python_file: ../workflows/rollup_refresh.py
             parameters:
               - ${var.lakebase_project}
-          environment_key: lakets_env
-
-    lakets_cold_rollup_refresh:
-      name: "LakeTS - Cold-Tier RollUp Refresh"
-      description: "Re-aggregates cold-tier dirty buckets from Delta Lake"
-      environments: *lakets_environments
-      tasks:
-        - task_key: cold_rollup_refresh
-          spark_python_task:
-            python_file: ../workflows/cold_rollup_refresh.py
-            parameters:
-              - ${var.lakebase_project}
-              - ${var.delta_catalog}
-              - ${var.delta_schema}
           environment_key: lakets_env
 
 targets:

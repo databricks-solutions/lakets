@@ -10,15 +10,15 @@ description: Stream data from Lakebase to a Unity Catalog Managed Table via CDC.
 Lakebase CDF streams data from Lakebase to a Unity Catalog Managed Table via CDC (Change Data Capture). It gives you:
 
 - Cold-storage tiering to a Unity Catalog Managed Table
-- Cross-tier queries via Lakehouse Federation
+- Query the cold tier directly in Databricks (Spark / Databricks SQL)
 - Analytics on historical data using Spark
 
 ## Prerequisites
 
 - A Databricks workspace with Lakebase enabled
-- A Lakebase **autoscale** instance running **PostgreSQL 17 or later**
+- A Lakebase **autoscale** instance running **PostgreSQL 16 or later**
 - LakeTS installed on that instance ([Quickstart](./getting-started.md))
-- At least one ChronoTable to replicate
+- At least one ChronoTable to sync
 
 ## How It Works
 
@@ -68,10 +68,10 @@ The shadow table `_shadow_metrics` will appear as `lb__shadow_metrics_history` i
 
 From Lakebase:
 ```sql
-SELECT * FROM lakebase_cdf.tables;
+SELECT table_oid::regclass AS shadow, status, committed_lsn
+FROM wal2delta.tables;
 -- status: STREAMING or SNAPSHOTTING
 -- committed_lsn: latest synced position
--- last_write_time: when last write occurred
 ```
 
 ## Step 4: Query Data from the Unity Catalog Managed Table
@@ -92,14 +92,20 @@ SELECT * FROM (
 ) WHERE rn = 1 AND _change_type != 'delete';
 ```
 
-## Step 5: Cross-Tier Queries (Federation)
+## Step 5: Querying across tiers
 
-Query both hot (Lakebase) and cold (UC Managed Table) data in a single query:
+The two tiers are queried independently, each in its own engine — LakeTS does not federate the Unity Catalog table back into Postgres.
+
+Recent (hot) data lives in Lakebase and is queried over Postgres:
 ```sql
--- Hot data from Lakebase
+-- Hot data from Lakebase (Postgres)
 SELECT time, device, cpu FROM metrics WHERE time > now() - interval '7 days'
-UNION ALL
--- Cold data from the UC Managed Table (via Lakehouse Federation)
+ORDER BY time DESC;
+```
+
+Historical (cold) data lives in the Unity Catalog Managed Table and is queried in Databricks (Spark / Databricks SQL):
+```sql
+-- Cold data from the UC Managed Table, queried in Databricks
 SELECT time, device, cpu FROM catalog.schema.metrics_archive WHERE time <= now() - interval '7 days'
 ORDER BY time DESC;
 ```

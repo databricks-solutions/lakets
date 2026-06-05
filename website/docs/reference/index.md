@@ -21,7 +21,6 @@ Every LakeTS function, custom aggregate, trigger, and metadata table — grouped
 
 ### Aggregation
 - **[RollUps](./rollups.md)** — incremental aggregation engine + scale optimizations
-- **[Downsampling pipelines](./downsampling.md)** — multi-resolution pipelines executed by Databricks Jobs
 
 ### Lifecycle
 - **[Lifecycle policies](./lifecycle.md)** — tiering, retention
@@ -44,11 +43,10 @@ Every LakeTS function, custom aggregate, trigger, and metadata table — grouped
 | Lifecycle (tiering + retention) | 11 | — | — |
 | Lakebase CDF | 3 | — | 1 |
 | Last Value Cache | 5 | — | 1 |
-| Downsampling | 4 | — | — |
 | Alerts | 2 | — | — |
 | Bulk ingest | 2 | — | — |
 | Monitoring | 3 | — | — |
 | Schema utilities | 1 | — | — |
-| **Total** | **73** | **2** | **6** |
+| **Total** | **69** | **2** | **6** |
 
-All objects in the `lakets` schema. PostgreSQL 17+ required. No custom extensions.
+All objects in the `lakets` schema. PostgreSQL 16+ required (Lakebase default). No custom extensions.

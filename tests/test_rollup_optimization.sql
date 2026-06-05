@@ -119,11 +119,11 @@ BEGIN
     SELECT count(*) INTO v_count_before FROM public._rollup_opt_1min;
 
     -- Manually create dirty bucket entries for historical buckets
-    INSERT INTO lakets._rollup_invalidation_log (rollup_id, bucket_start, tier)
+    INSERT INTO lakets._rollup_invalidation_log (rollup_id, bucket_start)
     VALUES
-        (v_id, now() - INTERVAL '5 days', 'hot'),
-        (v_id, now() - INTERVAL '4 days', 'hot'),
-        (v_id, now() - INTERVAL '3 days', 'hot');
+        (v_id, now() - INTERVAL '5 days'),
+        (v_id, now() - INTERVAL '4 days'),
+        (v_id, now() - INTERVAL '3 days');
 
     -- Call batch refresh directly
     SELECT lakets._refresh_buckets_batch(
@@ -274,35 +274,19 @@ DO $$ DECLARE v_count INT; v_first TEXT; BEGIN
 END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- T23: _resolve_bucket_tier returns correct tier
+-- T23: invalidate_rollup_range records dirty buckets for resident source data
 -- ═══════════════════════════════════════════════════════════════════════════
-DO $$ DECLARE v_ct_id INT; v_tier TEXT; BEGIN
-    SELECT id INTO v_ct_id FROM lakets._chronotable_registry WHERE table_name = 'opt_test';
-
-    -- Active chunks should return 'hot'
-    SELECT lakets._resolve_bucket_tier(v_ct_id, now() - INTERVAL '2 days') INTO v_tier;
-    ASSERT COALESCE(v_tier, 'hot') = 'hot', format('expected hot, got %s', v_tier);
-
-    RAISE NOTICE 'T23 PASSED: _resolve_bucket_tier returns %', COALESCE(v_tier, 'hot (default)');
-END $$;
-
--- ═══════════════════════════════════════════════════════════════════════════
--- T24: invalidate_rollup_range auto-detects tier when NULL
--- ═══════════════════════════════════════════════════════════════════════════
-DO $$ DECLARE v_count INT; v_tier TEXT; BEGIN
-    -- Call with p_tier = NULL (auto-detect)
+DO $$ DECLARE v_count INT; v_logged INT; BEGIN
     SELECT lakets.invalidate_rollup_range(
-        'opt_1min', now() - INTERVAL '3 days', now() - INTERVAL '2 days', NULL
+        'opt_1min', now() - INTERVAL '3 days', now() - INTERVAL '2 days'
     ) INTO v_count;
     ASSERT v_count > 0, 'invalidate_rollup_range returned 0';
 
-    -- Check that entries were created with auto-detected tier
-    SELECT DISTINCT tier INTO v_tier
+    SELECT count(*) INTO v_logged
     FROM lakets._rollup_invalidation_log
-    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'opt_1min')
-    LIMIT 1;
-    ASSERT v_tier IS NOT NULL, 'no tier detected';
-    RAISE NOTICE 'T24 PASSED: invalidate_rollup_range auto-detected tier=% for % entries', v_tier, v_count;
+    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'opt_1min');
+    ASSERT v_logged = v_count, format('expected %s logged, got %s', v_count, v_logged);
+    RAISE NOTICE 'T23 PASSED: invalidate_rollup_range recorded % dirty buckets', v_count;
 
     -- Cleanup
     DELETE FROM lakets._rollup_invalidation_log
@@ -347,12 +331,11 @@ END $$;
 DO $$ DECLARE v_result BOOLEAN; v_remaining INT; BEGIN
     UPDATE lakets._rollup_registry SET refresh_lag = '0 seconds' WHERE name = 'opt_1min';
 
-    -- Create some hot-tier invalidation entries
-    PERFORM lakets.invalidate_rollup_range('opt_1min', now() - INTERVAL '6 days', now() - INTERVAL '4 days', 'hot');
+    -- Create some invalidation entries
+    PERFORM lakets.invalidate_rollup_range('opt_1min', now() - INTERVAL '6 days', now() - INTERVAL '4 days');
 
     SELECT count(*) INTO v_remaining FROM lakets._rollup_invalidation_log
-    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'opt_1min')
-      AND tier = 'hot';
+    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'opt_1min');
     ASSERT v_remaining > 0, 'expected invalidation entries before refresh';
 
     -- Refresh should process them via batch (M24)
@@ -360,8 +343,7 @@ DO $$ DECLARE v_result BOOLEAN; v_remaining INT; BEGIN
     ASSERT v_result = TRUE, 'refresh_rollup should return TRUE';
 
     SELECT count(*) INTO v_remaining FROM lakets._rollup_invalidation_log
-    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'opt_1min')
-      AND tier = 'hot';
+    WHERE rollup_id = (SELECT id FROM lakets._rollup_registry WHERE name = 'opt_1min');
     ASSERT v_remaining = 0, format('expected 0 entries after refresh, got %s', v_remaining);
 
     RAISE NOTICE 'T27 PASSED: refresh_rollup batch-processed invalidation entries';

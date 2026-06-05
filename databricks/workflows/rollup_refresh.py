@@ -37,7 +37,7 @@ def run(project_name: str) -> int:
                 FROM lakets.refresh_rollup_cascade()
             """)
         except Exception as e:
-            # Whole-cascade failure (e.g. a broken RollUp query). Surface it.
+            # Whole-cascade failure (e.g. a broken RollUp query) — fail the job.
             failures.append("refresh_rollup_cascade")
             logger.error("Cascade refresh failed: %s", e)
             raise

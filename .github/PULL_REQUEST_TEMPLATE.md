@@ -1,9 +1,7 @@
 <!--
-Thanks for contributing to LakeTS!
-
-Please complete each section below. Skip a section only if it genuinely
-doesn't apply, and add a short "N/A — reason" line so reviewers know
-you considered it.
+Title must use a Conventional Commit prefix (feat:, fix:, perf:, refactor:,
+docs:, test:, chore:, ci:). Fill in each section; mark anything that doesn't
+apply as "N/A — reason".
 -->
 
 ## Summary
@@ -12,52 +10,42 @@ you considered it.
 
 ## Type of change
 
-<!-- Tick the relevant boxes. Multiple may apply. -->
-
 - [ ] `feat:` New feature (user-visible behavior change)
 - [ ] `fix:` Bug fix
 - [ ] `perf:` Performance improvement
 - [ ] `refactor:` Refactor (no behavior change)
 - [ ] `docs:` Documentation only
-- [ ] `test:` Tests only
-- [ ] `chore:` / `ci:` Tooling, dependencies, or workflows
-- [ ] Breaking change (requires migration; describe below)
+- [ ] `test:` / `chore:` / `ci:` Tests, tooling, or workflows
+- [ ] Breaking change (requires migration — describe below)
 
 ## SQL module(s) touched
 
-<!-- e.g. `01_chronotable.sql`, `03_rollup.sql`, `09_lvc.sql`, or N/A -->
+<!-- e.g. 02_chronotable.sql, 04_rollup.sql, 09_lvc.sql — or N/A -->
 
 ## Test plan
 
 <!--
-- Which test suite(s) cover this change?
-- Did you add or update tests? Link them.
-- Did you run them locally against a Lakebase instance? Paste the
-  PASSED line counts or a summary.
+- Which tests/test_*.sql suite(s) cover this? Did you add or update any?
+- Run against a Lakebase instance and paste the "ALL ... TESTS PASSED" line(s).
 -->
 
 ## Migration impact
 
 <!--
-Does this change schema, metadata tables (`lakets._*`), or function
-signatures in a way that requires an existing install to migrate?
-
-If yes:
-- Add a migration file under `migrations/` (naming: V{from}_V{to}_{desc}.sql).
-- Confirm the file passes the `Migration Lint` CI job.
-- Reference the migration here.
-
-If no: write "N/A — additive change only" or similar.
+Does this change schema, lakets._* metadata tables, or function signatures in a
+way that requires existing installs to migrate? If yes, add migrations/V{from}_V{to}_{desc}.sql,
+confirm the Migration Lint CI job passes, and reference it here. If no: "N/A — additive only".
 -->
 
-## Related issues / context
+## Related issues
 
-<!-- e.g. Closes #123, Refs #456, or design doc link -->
+<!-- Closes #123, Refs #456, or a design-doc link -->
 
-## Reviewer checklist
+## Checklist
 
-- [ ] Conventional Commit prefix in the PR title (e.g. `feat:`, `fix:`)
+- [ ] Conventional Commit prefix in the PR title
 - [ ] CI is green
 - [ ] No secrets or credentials in the diff
-- [ ] Updated `CHANGELOG.md` (if applicable, after Tier 2 lands)
-- [ ] Updated docs (if behavior changed)
+- [ ] `build.sh` MODULES and `sql/99_install.sql` stay in sync (if a module was added/removed/renamed)
+- [ ] Updated `CHANGELOG.md` (if user-visible)
+- [ ] Updated docs under `website/` (if behavior changed)

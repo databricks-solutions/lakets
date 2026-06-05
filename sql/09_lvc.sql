@@ -1,6 +1,7 @@
 -- =============================================================================
 -- LakeTS Last Value Cache (LVC)
--- Trigger-maintained cache for sub-10ms latest-state queries.
+-- Trigger-maintained table holding the latest row per key, for fast
+-- latest-state lookups without scanning the ChronoTable.
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -162,7 +163,7 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- latest_values: Reads from LVC cache table. Sub-10ms.
+-- latest_values: Reads the latest cached row per key from the LVC cache table.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION lakets.latest_values(
     p_table_name TEXT,

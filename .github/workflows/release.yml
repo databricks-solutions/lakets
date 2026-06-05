@@ -86,7 +86,7 @@ jobs:
           sha256sum -c lakets.sql.sha256
 
           # Install
-          psql -h <host> -U <user> -d <database> -f lakets.sql
+          psql -q -h <host> -U <user> -d <database> -f lakets.sql
           ```
 
           ## Install via psycopg

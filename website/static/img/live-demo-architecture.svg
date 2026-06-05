@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 600" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" role="img" aria-label="LakeTS Live Demo architecture: stream_ticks ingests into the stock_ticks ChronoTable in the Lakebase hot tier, which feeds the Last Value Cache, the RollUp DAG, and the lakets_cdf shadow; Lakebase CDF syncs the shadow to the Unity Catalog cold tier; serverless jobs drive the hot tier on a schedule.">
+  <defs>
+    <filter id="card" x="-6%" y="-12%" width="112%" height="124%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.16"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="arrowG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#16a34a"/>
+    </marker>
+  </defs>
+
+  <!-- ============ HOT TIER container ============ -->
+  <rect x="240" y="40" width="540" height="430" rx="18" fill="#16a34a" fill-opacity="0.06" stroke="#16a34a" stroke-opacity="0.45" stroke-width="1.5"/>
+  <text x="262" y="72" font-size="15" font-weight="700" fill="#15803d">Lakebase — hot tier (Postgres)</text>
+
+  <!-- stock_ticks ChronoTable -->
+  <g filter="url(#card)">
+    <rect x="266" y="120" width="210" height="120" rx="14" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  </g>
+  <!-- cylinder icon -->
+  <g transform="translate(292,150)" stroke="#16a34a" stroke-width="2.2" fill="#dcfce7">
+    <ellipse cx="14" cy="8" rx="14" ry="6"/>
+    <path d="M0,8 V40 a14,6 0 0 0 28,0 V8" fill="#dcfce7"/>
+    <path d="M0,24 a14,6 0 0 0 28,0" fill="none"/>
+  </g>
+  <text x="340" y="165" font-size="15" font-weight="700" fill="#0f172a">stock_ticks</text>
+  <text x="340" y="186" font-size="12" fill="#475569">ChronoTable</text>
+  <text x="340" y="203" font-size="12" fill="#475569">time partitions</text>
+  <text x="292" y="226" font-size="11" fill="#94a3b8">routes each insert to its partition</text>
+
+  <!-- Last Value Cache -->
+  <g filter="url(#card)"><rect x="556" y="92" width="196" height="66" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/></g>
+  <circle cx="584" cy="125" r="13" fill="#fef3c7"/><path d="M586,116 l-7,12 h7 l-2,8 8,-12 h-7 z" fill="#d97706"/>
+  <text x="606" y="120" font-size="13.5" font-weight="700" fill="#0f172a">Last Value Cache</text>
+  <text x="606" y="138" font-size="11.5" fill="#475569">latest price / symbol · sub-10 ms</text>
+
+  <!-- RollUp DAG -->
+  <g filter="url(#card)"><rect x="556" y="184" width="196" height="78" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/></g>
+  <g transform="translate(572,205)"><rect x="0" y="22" width="9" height="16" rx="2" fill="#16a34a"/><rect x="13" y="12" width="9" height="26" rx="2" fill="#16a34a"/><rect x="26" y="0" width="9" height="38" rx="2" fill="#16a34a"/></g>
+  <text x="618" y="212" font-size="13.5" font-weight="700" fill="#0f172a">RollUp DAG</text>
+  <text x="618" y="230" font-size="11.5" fill="#475569">1 min → 1 hour → 1 day</text>
+  <text x="618" y="247" font-size="11.5" fill="#475569">incremental + invalidation</text>
+
+  <!-- CDF shadow -->
+  <g filter="url(#card)"><rect x="556" y="288" width="196" height="66" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/></g>
+  <g transform="translate(574,310)" fill="none" stroke="#7c3aed" stroke-width="2"><rect x="6" y="0" width="20" height="24" rx="3" fill="#ede9fe"/><rect x="0" y="6" width="20" height="24" rx="3" fill="#ffffff"/></g>
+  <text x="606" y="316" font-size="13.5" font-weight="700" fill="#0f172a">lakets_cdf shadow</text>
+  <text x="606" y="334" font-size="11.5" fill="#475569">unpartitioned · REPLICA FULL</text>
+
+  <!-- ============ stream_ticks (ingest) ============ -->
+  <g filter="url(#card)"><rect x="24" y="150" width="172" height="92" rx="14" fill="#ffffff" stroke="#ea580c" stroke-width="2"/></g>
+  <path d="M58,176 l-12,22 h12 l-4,16 14,-24 h-12 z" fill="#ea580c"/>
+  <text x="86" y="186" font-size="14.5" font-weight="700" fill="#0f172a">stream_ticks</text>
+  <text x="86" y="205" font-size="11.5" fill="#475569">continuous</text>
+  <text x="86" y="221" font-size="11.5" fill="#475569">synthetic ticks</text>
+
+  <!-- ============ COLD TIER ============ -->
+  <g filter="url(#card)"><rect x="836" y="250" width="200" height="110" rx="14" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/></g>
+  <g transform="translate(862,278)" fill="#7c3aed" opacity="0.9"><path d="M0,10 l18,-9 18,9 -18,9 z"/><path d="M0,22 l18,9 18,-9" fill="none" stroke="#7c3aed" stroke-width="3"/><path d="M0,34 l18,9 18,-9" fill="none" stroke="#7c3aed" stroke-width="3"/></g>
+  <text x="912" y="288" font-size="14.5" font-weight="700" fill="#0f172a">Unity Catalog</text>
+  <text x="912" y="307" font-size="11.5" fill="#475569">Managed Table (Delta)</text>
+  <text x="912" y="324" font-size="11.5" fill="#475569">full, query-ready history</text>
+
+  <!-- ============ ARROWS ============ -->
+  <!-- stream_ticks -> stock_ticks -->
+  <path d="M196,196 H266 V180" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+  <g transform="translate(206,182)"><rect width="46" height="20" rx="10" fill="#334155"/><text x="23" y="14" font-size="11" font-weight="600" fill="#fff" text-anchor="middle">insert</text></g>
+  <!-- stock_ticks -> LVC / RollUp / shadow -->
+  <path d="M476,150 C516,130 520,125 556,125" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M476,185 H556" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M476,215 C516,240 520,321 556,321" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+  <g transform="translate(492,168)"><rect width="52" height="20" rx="10" fill="#334155"/><text x="26" y="14" font-size="11" font-weight="600" fill="#fff" text-anchor="middle">trigger</text></g>
+  <!-- shadow -> Unity Catalog -->
+  <path d="M752,321 C800,321 800,305 836,305" fill="none" stroke="#7c3aed" stroke-width="2.2" marker-end="url(#arrowG)"/>
+  <g transform="translate(760,288)"><rect width="92" height="20" rx="10" fill="#7c3aed"/><text x="46" y="14" font-size="11" font-weight="600" fill="#fff" text-anchor="middle">Lakebase CDF</text></g>
+
+  <!-- ============ JOBS footer (the clock) ============ -->
+  <g filter="url(#card)"><rect x="24" y="508" width="1012" height="66" rx="14" fill="#ffffff" stroke="#ea580c" stroke-opacity="0.6" stroke-width="1.5"/></g>
+  <circle cx="58" cy="541" r="16" fill="#ffedd5"/>
+  <g transform="translate(58,541)" stroke="#ea580c" stroke-width="2.4" fill="none"><circle r="9"/><path d="M0,-5 V0 L4,3"/></g>
+  <text x="86" y="535" font-size="13.5" font-weight="700" fill="#9a3412">Databricks Lakeflow Jobs (serverless)</text>
+  <text x="86" y="556" font-size="12" fill="#475569">partition_manager · rollup_refresh (cascade) · tiering (CDF-gated) · retention — wake on a schedule and call the SQL</text>
+  <!-- dashed links from jobs band up into the hot tier -->
+  <path d="M430,508 V470" fill="none" stroke="#ea580c" stroke-opacity="0.5" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+</svg>

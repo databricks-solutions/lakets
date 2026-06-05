@@ -135,7 +135,7 @@ def lakebase_cursor(project_name: str, database: str = "databricks_postgres"):
 
 
 def fetch_all(cur, sql: str, params=None):
-    """Execute SQL and return all rows as list of dicts."""
+    """Execute SQL and return every row as a dict keyed by column name."""
     cur.execute(sql, params)
     cols = [desc[0] for desc in cur.description]
     return [dict(zip(cols, row)) for row in cur.fetchall()]

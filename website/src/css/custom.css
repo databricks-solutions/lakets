@@ -211,6 +211,10 @@ body.stitch-home .main-wrapper {
   font-weight: 500;
   color: var(--ifm-color-content-secondary);
   padding: 0.25rem 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
 }
 
 .navbar__link--active,
@@ -233,6 +237,13 @@ body.stitch-home .main-wrapper {
 
 .navbar__link {
   font-weight: 500;
+}
+
+/* Ensure navbar link pseudo-elements (icons) stay inline and don't force wrapping */
+.navbar__link::before,
+.navbar__link::after {
+  display: inline-block;
+  flex-shrink: 0;
 }
 
 /* ──────────────────────────────────────────────────────────────────────
@@ -300,7 +311,6 @@ code {
 
 /* Material Symbols icon prefix on each sidebar link, keyed off href */
 .menu__link[href$="/intro"]::before { content: "waves"; }
-.menu__link[href$="/architecture-patterns"]::before { content: "schema"; }
 .menu__link[href*="/guides/getting-started"]::before { content: "rocket_launch"; }
 .menu__link[href*="/guides/lakebase-cdf-setup"]::before { content: "sync_alt"; }
 
@@ -322,7 +332,7 @@ code {
 .menu__link[href*="/how-to/monitoring"]::before { content: "monitoring"; }
 .menu__link[href*="/how-to/cardinality"]::before { content: "scatter_plot"; }
 .menu__link[href*="/how-to/export-to-uc"]::before { content: "cloud_upload"; }
-.menu__link[href*="/how-to/downsampling"]::before { content: "compress"; }
+.menu__link[href*="/how-to/upgrading"]::before { content: "upgrade"; }
 /* Reference subpages — one icon per topic */
 .menu__link[href$="/reference/"]::before,
 .menu__link[href$="/reference"]::before { content: "menu_book"; }
@@ -333,7 +343,6 @@ code {
 .menu__link[href*="/reference/lakebase-cdf"]::before { content: "hub"; }
 .menu__link[href*="/reference/multi-metric-tables"]::before { content: "table_chart"; }
 .menu__link[href*="/reference/last-value-cache"]::before { content: "bolt"; }
-.menu__link[href*="/reference/downsampling"]::before { content: "compress"; }
 .menu__link[href*="/reference/alerts"]::before { content: "notifications_active"; }
 .menu__link[href*="/reference/bulk-ingest"]::before { content: "upload"; }
 .menu__link[href*="/reference/monitoring"]::before { content: "monitoring"; }
@@ -342,7 +351,6 @@ code {
 .menu__link[href*="/reference/workflow-jobs"]::before { content: "rule_settings"; }
 .menu__link[href$="/troubleshooting"]::before { content: "build"; }
 .menu__link[href$="/glossary"]::before { content: "menu_book"; }
-.menu__link[href*="/examples/sensor-reading-journey"]::before { content: "timeline"; }
 
 .menu__link::before {
   font-family: "Material Symbols Outlined";
@@ -996,4 +1004,49 @@ div[class*="mermaid"] svg {
 [data-theme="dark"] .docusaurus-mermaid-container svg,
 [data-theme="dark"] div[class*="mermaid"] svg {
   filter: brightness(1.05);
+}
+
+/* Justify doc body paragraphs for a cleaner, even reading column.
+ * Scoped to paragraphs so list items, tables, and code keep their natural
+ * left alignment. hyphens:auto avoids large inter-word gaps. */
+.theme-doc-markdown p {
+  text-align: justify;
+  hyphens: auto;
+}
+
+/* Make content list markers explicit and always visible, independent of
+ * browser defaults — disc bullets, indented, in the primary color. */
+.theme-doc-markdown ul {
+  list-style: disc outside;
+  padding-left: 1.5rem;
+}
+
+.theme-doc-markdown ul ul {
+  list-style: circle outside;
+}
+
+.theme-doc-markdown ol {
+  list-style: decimal outside;
+  padding-left: 1.5rem;
+}
+
+.theme-doc-markdown li::marker {
+  color: var(--ifm-color-primary);
+}
+
+/* Architecture diagram SVGs — centered on a themed surface card so the
+ * light cards inside the diagram read on both light and dark themes. */
+.theme-doc-markdown img[src$="-architecture.svg"] {
+  display: block;
+  margin: 1.75rem auto;
+  max-width: 100%;
+  padding: 1.5rem 1.25rem;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="dark"] .theme-doc-markdown img[src$="-architecture.svg"] {
+  background: var(--lakets-surface-container-low);
+  border-color: rgba(255, 180, 170, 0.12);
 }

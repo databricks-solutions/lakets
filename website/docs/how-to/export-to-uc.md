@@ -15,14 +15,14 @@ RollUp Tables live in Lakebase. To expose them to Spark jobs, BI dashboards, and
 SELECT lakets.enable_sync('metrics_hourly');
 ```
 
-What this does:
+This call:
 
 1. Creates an unpartitioned shadow table `lakets_cdf._shadow_rollup_metrics_hourly` with `REPLICA IDENTITY FULL`.
 2. Installs a mirror trigger that forwards every `INSERT` / `UPDATE` / `DELETE` from the RollUp Table to the shadow.
-3. Lakebase CDF replicates the shadow to the Unity Catalog Managed Table `lb__shadow_rollup_metrics_hourly_history`.
+3. Lakebase CDF syncs the shadow to the Unity Catalog Managed Table `lb__shadow_rollup_metrics_hourly_history`.
 
 :::note Why the shadow layer?
-Lakebase CDF cannot replicate partitioned tables and fails on schemas that contain them. Synced tables are therefore isolated in the unpartitioned `lakets_cdf` schema. This layer is a workaround that can be removed once Lakebase lifts the partitioned-table limitation.
+Lakebase CDF cannot sync partitioned tables and fails on schemas that contain them. Synced tables are therefore isolated in the unpartitioned `lakets_cdf` schema. This layer is a workaround that can be removed once Lakebase lifts the partitioned-table limitation.
 :::
 
 ## Disable sync

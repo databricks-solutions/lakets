@@ -13,12 +13,6 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "category",
-      label: "Architecture Patterns",
-      collapsed: false,
-      items: ["architecture-patterns"],
-    },
-    {
-      type: "category",
       label: "How-to guides",
       collapsed: false,
       items: [
@@ -31,7 +25,7 @@ const sidebars: SidebarsConfig = {
         "how-to/monitoring",
         "how-to/cardinality",
         "how-to/export-to-uc",
-        "how-to/downsampling",
+        "how-to/upgrading",
       ],
     },
     {
@@ -49,15 +43,24 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "category",
-      label: "Examples",
-      collapsed: false,
-      items: ["examples/sensor-reading-journey"],
-    },
-    {
-      type: "category",
       label: "Demos",
       collapsed: false,
-      items: ["guides/live-demo"],
+      items: [
+        {
+          type: "category",
+          label: "Live Demo",
+          link: { type: "doc", id: "guides/live-demo/index" },
+          items: [
+            "guides/live-demo/prerequisites",
+            "guides/live-demo/setup",
+            "guides/live-demo/enable-cdf",
+            "guides/live-demo/deploy-and-run",
+            "guides/live-demo/how-it-works",
+            "guides/live-demo/grafana",
+            "guides/live-demo/teardown",
+          ],
+        },
+      ],
     },
     {
       type: "category",
@@ -72,7 +75,6 @@ const sidebars: SidebarsConfig = {
         "reference/lakebase-cdf",
         "reference/multi-metric-tables",
         "reference/last-value-cache",
-        "reference/downsampling",
         "reference/alerts",
         "reference/bulk-ingest",
         "reference/monitoring",
@@ -80,6 +82,9 @@ const sidebars: SidebarsConfig = {
         "reference/workflow-jobs",
       ],
     },
+    "limitations",
+    "roadmap",
+    "changelog",
     "troubleshooting",
     "glossary",
   ],
