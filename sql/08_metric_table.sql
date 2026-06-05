@@ -1,6 +1,6 @@
 -- =============================================================================
 -- LakeTS Multi-Metric ChronoTables
--- InfluxDB-style tag + field model with cardinality management.
+-- Tag + field model with cardinality management.
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------

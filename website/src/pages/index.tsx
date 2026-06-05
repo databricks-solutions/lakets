@@ -194,7 +194,7 @@ function ChronoTableShowcase() {
 {"\n  "}{<span className={styles.tokenString}>'metrics'</span>}, {<span className={styles.tokenString}>'time'</span>}, {<span className={styles.tokenString}>'1 day'</span>}
 {"\n"});
 {"\n"}
-{"\n"}{<span className={styles.tokenComment}>{`-- Or: InfluxDB-style table + chunks + indexes in one call`}</span>}
+{"\n"}{<span className={styles.tokenComment}>{`-- Or: multi-metric table + chunks + indexes in one call`}</span>}
 {"\n"}{<span className={styles.tokenKeyword}>SELECT</span>} {<span className={styles.tokenFunction}>lakets.create_metric_table</span>}(
 {"\n  "}{<span className={styles.tokenString}>'system_metrics'</span>},
 {"\n  "}tag_columns    {<span className={styles.tokenKeyword}>:=</span>} {<span className={styles.tokenKeyword}>ARRAY</span>}[{<span className={styles.tokenString}>'host'</span>}, {<span className={styles.tokenString}>'region'</span>}, {<span className={styles.tokenString}>'env'</span>}],

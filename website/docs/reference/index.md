@@ -13,7 +13,7 @@ Every LakeTS function, custom aggregate, trigger, and metadata table — grouped
 
 ### Core data model
 - **[ChronoTables](./chronotables.md)** — create, manage, list, drop time-partitioned tables
-- **[Multi-metric tables](./multi-metric-tables.md)** — InfluxDB-style tag + field model + cardinality controls
+- **[Multi-metric tables](./multi-metric-tables.md)** — tag + field model + cardinality controls
 - **[Metadata tables](./metadata-tables.md)** — the `lakets` schema's state-management tables
 
 ### Query

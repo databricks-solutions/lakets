@@ -2,12 +2,12 @@
 title: Multi-metric tables
 sidebar_label: Multi-metric tables
 sidebar_position: 6
-description: Functions for InfluxDB-style tag + field ChronoTables and tag-cardinality controls.
+description: Functions for tag + field ChronoTables and tag-cardinality controls.
 ---
 
 # Multi-metric tables
 
-InfluxDB-style tag + field model for multi-metric time-series data. A multi-metric ChronoTable indexes its tag columns automatically and exposes cardinality controls so you can catch label explosion early.
+A tag + field model for multi-metric time-series data. A multi-metric ChronoTable indexes its tag columns automatically and exposes cardinality controls so you can catch label explosion early.
 
 ## `create_metric_table(p_table_name, p_tag_columns, p_field_columns, p_chunk_interval, p_schema_name)`
 

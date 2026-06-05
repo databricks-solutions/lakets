@@ -15,7 +15,7 @@ time-series database — pure PL/pgSQL, no custom extensions.
 
 ### Added
 
-- **ChronoTables** — automatic time-based partitioning via `create_chronotable()`, plus InfluxDB-style multi-metric tables via `create_metric_table()`.
+- **ChronoTables** — automatic time-based partitioning via `create_chronotable()`, plus multi-metric (tag + field) tables via `create_metric_table()`.
 - **Time-series functions** — `time_bucket`, `time_bucket_gapfill`, `first`/`last` aggregates, `locf`, `interpolate`, `delta`, `rate`, and `histogram`.
 - **RollUp engine** — incremental aggregates with watermark-driven refresh, per-bucket invalidation tracking, chunk-skip pruning, and DAG-ordered cascade refresh.
 - **Last Value Cache** — sub-10ms latest-state lookups via `enable_lvc()`.

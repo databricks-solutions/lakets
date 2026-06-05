@@ -61,7 +61,7 @@ A trigger-maintained table holding the most recent row per key for a ChronoTable
 
 ## Multi-metric table
 
-A ChronoTable shaped with `tag_columns` (identifying the series) and `field_columns` (the measurements). InfluxDB-style. Created with `lakets.create_metric_table()`.
+A ChronoTable shaped with `tag_columns` (identifying the series) and `field_columns` (the measurements). Created with `lakets.create_metric_table()`.
 
 ## Partition pruning
 
