@@ -48,9 +48,9 @@ SELECT lakets.enable_sync('metrics');
 Full documentation is published at **https://databricks-solutions.github.io/lakets/**:
 
 - **[Getting started](https://databricks-solutions.github.io/lakets/guides/getting-started)** — install, create ChronoTables, run your first query.
-- **[How it works](https://databricks-solutions.github.io/lakets/guides/how-it-works/)** — partitioning, RollUps, tiering, and Lakebase CDF internals.
-- **[How-to guides](https://databricks-solutions.github.io/lakets/how-to/)** — RollUps, lifecycle, LVC, alerts, bulk ingest, sync to UC, upgrading.
-- **[Reference](https://databricks-solutions.github.io/lakets/reference/)** — every function, aggregate, trigger, and metadata table.
+- **[How it works](https://databricks-solutions.github.io/lakets/guides/how-it-works)** — partitioning, RollUps, tiering, and Lakebase CDF internals.
+- **[How-to guides](https://databricks-solutions.github.io/lakets/how-to)** — RollUps, lifecycle, LVC, alerts, bulk ingest, sync to UC, upgrading.
+- **[Reference](https://databricks-solutions.github.io/lakets/reference)** — every function, aggregate, trigger, and metadata table.
 
 ## Requirements
 
