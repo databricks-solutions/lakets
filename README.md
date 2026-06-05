@@ -1,7 +1,6 @@
 # LakeTS — Time-Series Toolkit for Databricks Lakebase
 
 [![CI Security & Quality Checks](https://github.com/databricks-solutions/lakets/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/databricks-solutions/lakets/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/databricks-solutions/lakets/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/databricks-solutions/lakets/actions/workflows/codeql.yml)
 [![Release](https://github.com/databricks-solutions/lakets/actions/workflows/release.yml/badge.svg)](https://github.com/databricks-solutions/lakets/actions/workflows/release.yml)
 [![Latest release](https://img.shields.io/github/v/release/databricks-solutions/lakets?sort=semver&label=release)](https://github.com/databricks-solutions/lakets/releases/latest)
 [![License](https://img.shields.io/badge/license-Databricks_DB_License-blue)](./LICENSE.md)
