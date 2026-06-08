@@ -21,9 +21,6 @@ DECLARE
     v_oid OID;
     v_lsn PG_LSN;
 BEGIN
-    IF to_regclass('wal2delta.tables') IS NULL THEN
-        RETURN NULL;
-    END IF;
     v_oid := to_regclass('lakets_cdf.' || quote_ident(p_shadow_name))::oid;
     IF v_oid IS NULL THEN
         RETURN NULL;
@@ -32,6 +29,13 @@ BEGIN
     FROM wal2delta.tables
     WHERE table_oid = v_oid AND status = 'STREAMING';
     RETURN v_lsn;  -- NULL if no STREAMING row
+EXCEPTION
+    -- wal2delta is a Lakebase-managed schema. If the subsystem is absent
+    -- (undefined schema/table) or this role lacks USAGE/SELECT on it
+    -- (insufficient_privilege), we cannot confirm durability -- fail closed
+    -- so tiering never evicts data we could not verify in Unity Catalog.
+    WHEN insufficient_privilege OR undefined_table OR invalid_schema_name THEN
+        RETURN NULL;
 END;
 $$;
 

@@ -121,6 +121,7 @@ AS $$
 DECLARE
     v_is_ct BOOLEAN;
     v_is_ru BOOLEAN;
+    v_cdf_present BOOLEAN;
 BEGIN
     SELECT EXISTS(SELECT 1 FROM lakets._chronotable_registry
                   WHERE schema_name = p_schema_name AND table_name = p_table_name) INTO v_is_ct;
@@ -130,11 +131,19 @@ BEGIN
     -- enabled on the lakets_cdf schema via Databricks. Without it, the shadow is
     -- created but never streams to Unity Catalog, and tiering stays fail-closed
     -- (nothing is ever evicted). Warn loudly rather than failing, so sync can be
-    -- wired before CDF is turned on.
-    IF to_regclass('wal2delta.tables') IS NULL THEN
-        RAISE WARNING 'Lakebase CDF (wal2delta) is not enabled on this database. The '
-            'shadow will be created but will not replicate to Unity Catalog, and '
-            'tiering will not evict any partitions. Enable CDF on the lakets_cdf '
+    -- wired before CDF is turned on. wal2delta is a Lakebase-managed schema; if
+    -- this role lacks USAGE on it, probing raises insufficient_privilege -- treat
+    -- that the same as "not visible" so enable_sync (which does not otherwise
+    -- touch wal2delta) still completes.
+    BEGIN
+        v_cdf_present := to_regclass('wal2delta.tables') IS NOT NULL;
+    EXCEPTION WHEN insufficient_privilege THEN
+        v_cdf_present := FALSE;
+    END;
+    IF NOT v_cdf_present THEN
+        RAISE WARNING 'Lakebase CDF (wal2delta) is not enabled or not visible to this '
+            'role. The shadow will be created but will not replicate to Unity Catalog, '
+            'and tiering will not evict any partitions. Enable CDF on the lakets_cdf '
             'schema (see the LakeTS prerequisites) to activate sync.';
     END IF;
 

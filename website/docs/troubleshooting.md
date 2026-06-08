@@ -93,6 +93,19 @@ Lakebase CDF is schema-sensitive. After an `ALTER TABLE`:
 
 You enabled sync on the ChronoTable itself instead of the shadow table. Make sure `_chronotable_registry.sync_enabled = true` and the registry's `shadow_table_name` is what's configured in the Databricks sync — not the partitioned parent.
 
+### `ERROR: permission denied for schema wal2delta`
+
+`wal2delta` is the Lakebase CDF subsystem's own schema. `enable_sync` and the tiering durability gate probe it only to check whether CDF is active; they never write to it. If your role lacks `USAGE` on `wal2delta`, the probe is tolerated — `enable_sync` completes (creating the shadow and trigger as usual) and the tiering gate fails closed (it evicts nothing it cannot verify).
+
+If you need CDF-gated tiering to actually evict partitions, grant the role read access to the gate it depends on:
+
+```sql
+GRANT USAGE ON SCHEMA wal2delta TO "<your-role>";
+GRANT SELECT ON wal2delta.tables TO "<your-role>";
+```
+
+Run these as the `wal2delta` owner or a Lakebase admin. Until then, tiering stays fail-closed by design.
+
 ## Performance
 
 ### Inserts slow down over time
