@@ -44,10 +44,10 @@ def run(project_name: str) -> int:
     deferred = 0
     with lakebase_cursor(project_name) as cur:
         tables = fetch_all(cur, """
-            SELECT hr.id, hr.schema_name, hr.table_name
+            SELECT DISTINCT hr.id, hr.schema_name, hr.table_name
             FROM lakets._chronotable_registry hr
             JOIN lakets._policy_registry pr ON hr.id = pr.chronotable_id
-            WHERE pr.policy_type = 'tiering' AND pr.enabled = TRUE
+            WHERE pr.policy_type IN ('tiering', 'tiered_retention') AND pr.enabled = TRUE
         """)
         logger.info("Found %d table(s) with tiering policies", len(tables))
 
