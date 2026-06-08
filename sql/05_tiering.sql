@@ -288,13 +288,18 @@ DECLARE
     v_after INTERVAL;
     v_shadow TEXT;
 BEGIN
-    SELECT hr.id, (pr.config->>'after')::INTERVAL, hr.shadow_table_name
+    -- The flag/tier horizon comes from a 'tiering' policy ('after') or the
+    -- tier_after leg of a combined 'tiered_retention' policy. Both are validated
+    -- and flagged here; 'tiered_retention' also owns the later drop at drop_after.
+    SELECT hr.id,
+           COALESCE(pr.config->>'after', pr.config->>'tier_after')::INTERVAL,
+           hr.shadow_table_name
     INTO v_chronotable_id, v_after, v_shadow
     FROM lakets._chronotable_registry hr
     JOIN lakets._policy_registry pr ON hr.id = pr.chronotable_id
     WHERE hr.schema_name = p_schema_name
       AND hr.table_name = p_table_name
-      AND pr.policy_type = 'tiering'
+      AND pr.policy_type IN ('tiering', 'tiered_retention')
       AND pr.enabled = TRUE;
 
     IF NOT FOUND THEN

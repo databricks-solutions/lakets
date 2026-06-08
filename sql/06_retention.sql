@@ -100,6 +100,23 @@ BEGIN
             ), TRUE)
     RETURNING id INTO v_policy_id;
 
+    UPDATE lakets._chronotable_registry
+    SET tiering_enabled = TRUE
+    WHERE id = v_chronotable_id;
+
+    -- The tiering job flags chunks 'tiered' at tier_after, gated on each chunk's
+    -- last_write_lsn being durable in UC. Install write-tracking and backfill the
+    -- current WAL head onto existing active chunks (same as add_tiering_policy),
+    -- or tier_chunk treats a NULL last_write_lsn as "cannot prove durable" and
+    -- defers every chunk forever.
+    PERFORM lakets._install_tiering_write_tracking(p_schema_name, p_table_name);
+
+    UPDATE lakets._chunk_metadata
+    SET last_write_lsn = pg_current_wal_lsn()
+    WHERE chronotable_id = v_chronotable_id
+      AND status = 'active'
+      AND last_write_lsn IS NULL;
+
     RETURN v_policy_id;
 END;
 $$;

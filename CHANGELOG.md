@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-06-08
+
+### Fixed
+
+- **`add_tiered_retention_policy` now actually tiers.** The flag/tier phase only recognized `tiering` policies, so a combined `tiered_retention` policy was never flagged (`Found 0 table(s) with tiering policies`) — only its drop horizon worked. Fixed across the flag path: the tiering job and `_get_chunks_to_tier` now match `policy_type IN ('tiering', 'tiered_retention')` and read the horizon from `after` or `tier_after`. `add_tiered_retention_policy` also installs the write-tracking trigger, backfills `last_write_lsn` on existing chunks, and sets `tiering_enabled = TRUE` — without these, `tier_chunk` deferred every chunk.
+
+Upgrade by reinstalling `dist/lakets.sql` and redeploying the maintenance jobs (the fix spans both SQL and `tiering_job.py`).
+
 ## [0.1.1] - 2026-06-08
 
 ### Fixed
