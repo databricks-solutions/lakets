@@ -29,7 +29,7 @@
     "@docusaurus/tsconfig": "^3.6.3",
     "@docusaurus/types": "^3.6.3",
     "playwright": "^1.60.0",
-    "typescript": "~5.6.0"
+    "typescript": "~6.0.3"
   },
   "overrides": {
     "serialize-javascript": "^7.0.5",
