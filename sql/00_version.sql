@@ -22,7 +22,7 @@ SET client_min_messages TO NOTICE;
 DO $$
 DECLARE
     v_installed       TEXT;
-    v_incoming        TEXT := coalesce(nullif('__LAKETS_VERSION__', '__LAKE' || 'TS_VERSION__'), '0.1.0');
+    v_incoming        TEXT := coalesce(nullif('__LAKETS_VERSION__', '__LAKE' || 'TS_VERSION__'), '0.1.1');
     v_installed_parts INT[];
     v_incoming_parts  INT[];
 BEGIN
