@@ -42,9 +42,10 @@ print(f"project={PROJECT} db={PG_DATABASE} symbols={SYMBOLS_COUNT} "
 # MAGIC ## Lakebase Autoscaling connection (M2M OAuth)
 # MAGIC Mirrors `databricks/workflows/lakebase_utils.py`: resolve the project's
 # MAGIC primary read-write endpoint, read its host, and mint a short-lived OAuth
-# MAGIC credential used as the Postgres password. A single long-lived connection
-# MAGIC outlives the ~1h token (expiry is enforced only at login); if the job
-# MAGIC restarts it reconnects with a fresh token.
+# MAGIC credential used as the Postgres password. The OAuth token lasts ~1h and
+# MAGIC Lakebase closes the connection once it lapses, so a continuous run must
+# MAGIC reconnect: the loop refreshes the connection before the token expires and
+# MAGIC also reconnects on any dropped connection (autoscale scaling, network).
 
 # COMMAND ----------
 
@@ -147,6 +148,33 @@ started    = time.time()
 end_at     = started + DURATION_MINUTES * 60 if DURATION_MINUTES > 0 else None
 total      = 0
 last_burst = started
+conn_opened = started
+# Reconnect before the ~1h OAuth credential expires — Lakebase terminates the
+# connection when the token it logged in with lapses.
+TOKEN_REFRESH_SEC = 50 * 60
+
+
+def _reconnect():
+    global conn, conn_opened
+    try:
+        conn.close()
+    except Exception:
+        pass
+    conn = connect()
+    conn_opened = time.time()
+
+
+def safe_insert(rows):
+    """Insert, transparently reconnecting with a fresh token if the connection
+    has dropped (token expiry, autoscale scaling, or a network blip)."""
+    global conn
+    try:
+        batch_insert(conn, rows)
+    except psycopg.OperationalError as e:
+        print(f"  [reconnect] connection lost ({e}); reconnecting with a fresh token")
+        _reconnect()
+        batch_insert(conn, rows)
+
 
 try:
     while True:
@@ -154,14 +182,19 @@ try:
             print(f"Duration reached ({DURATION_MINUTES} min). Stopping.")
             break
 
+        # Proactively refresh before the OAuth token expires.
+        if time.time() - conn_opened >= TOKEN_REFRESH_SEC:
+            print("  [reconnect] refreshing OAuth connection before token expiry")
+            _reconnect()
+
         t_epoch = int(time.time())
         rows = [synth_tick(random.choice(symbols), t_epoch) for _ in range(ROWS_PER_SEC)]
-        batch_insert(conn, rows)
+        safe_insert(rows)
         total += len(rows)
 
         if BURST_MODE and (time.time() - last_burst) >= 60:
             burst_rows = [synth_tick(random.choice(symbols), t_epoch) for _ in range(10_000)]
-            batch_insert(conn, burst_rows)
+            safe_insert(burst_rows)
             total += len(burst_rows)
             last_burst = time.time()
             print(f"  [burst] +10k rows  total={total:,}")
