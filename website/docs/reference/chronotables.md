@@ -80,7 +80,7 @@ Lists all partitions for a ChronoTable with metadata.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `chunk_name` | TEXT | Partition name (e.g., `sensor_data_20260401_000000`) |
+| `chunk_name` | TEXT | Partition name, suffixed with the chunk's start time in UTC (e.g., `sensor_data_20260401_000000`) |
 | `range_start` | TIMESTAMPTZ | Partition lower bound |
 | `range_end` | TIMESTAMPTZ | Partition upper bound |
 | `status` | TEXT | `active`, `tiered`, or `dropped` |

@@ -44,6 +44,25 @@ Partition pruning only works if your `WHERE` clause uses the time column in a fo
 
 Confirm with `EXPLAIN (ANALYZE)` — the plan should list only the chunks you expect.
 
+### Partition Manager fails with `duplicate key value violates unique constraint "idx_chunk_metadata_chunk_name"`
+
+Fixed in **v0.1.3**. Before that, `_ensure_partitions` derived `chunk_name` from `range_start` in the **session timezone**, while `range_start` is stored as an absolute `timestamptz`. Running it from sessions in different timezones (e.g. the scheduled job in UTC and a client in UTC+2) named the same chunk differently, so a later run computed a name that collided with an existing row whose `range_start` differed — and the insert's `ON CONFLICT (chronotable_id, range_start)` couldn't absorb a `chunk_name` collision.
+
+To resolve:
+
+1. Upgrade to v0.1.3+ (reinstall `dist/lakets.sql`) — chunk names are now rendered from the UTC instant, so they stay 1:1 with `range_start` regardless of session timezone.
+2. Drop the stale rows created under the old behavior. Their partitions are already gone, so the metadata rows are just colliding tombstones:
+   ```sql
+   DELETE FROM lakets._chunk_metadata cm
+   USING lakets._chronotable_registry hr
+   WHERE cm.chronotable_id = hr.id
+     AND hr.table_name = '<your_table>'
+     AND cm.status = 'dropped'
+     AND cm.chunk_name <> hr.schema_name || '.' || hr.table_name || '_'
+                          || to_char(cm.range_start AT TIME ZONE 'UTC', 'YYYYMMDD_HH24MISS');
+   ```
+3. Re-run the Partition Manager — it recreates the missing chunks with UTC-aligned names.
+
 ## RollUps
 
 ### `refresh_rollup()` returns `FALSE`
