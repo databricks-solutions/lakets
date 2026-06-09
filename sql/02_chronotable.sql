@@ -64,16 +64,21 @@ BEGIN
               AND status != 'dropped'
         ) THEN
             BEGIN
+                -- Render the chunk name from the absolute instant in UTC. range_start
+                -- is a timestamptz, so to_char in the session timezone would name the
+                -- same chunk differently across sessions (e.g. a job in UTC vs a client
+                -- in UTC+2), desyncing chunk_name from range_start and colliding on the
+                -- chunk_name unique index. UTC keeps the name 1:1 with range_start.
                 EXECUTE format(
                     'CREATE TABLE IF NOT EXISTS %I.%I PARTITION OF %I.%I FOR VALUES FROM (%L) TO (%L)',
                     v_schema,
-                    v_table || '_' || to_char(v_start, 'YYYYMMDD_HH24MISS'),
+                    v_table || '_' || to_char(v_start AT TIME ZONE 'UTC', 'YYYYMMDD_HH24MISS'),
                     v_schema, v_table, v_start, v_end
                 );
                 INSERT INTO lakets._chunk_metadata
                     (chronotable_id, chunk_name, range_start, range_end, status)
                 VALUES (p_chronotable_id,
-                        v_schema || '.' || v_table || '_' || to_char(v_start, 'YYYYMMDD_HH24MISS'),
+                        v_schema || '.' || v_table || '_' || to_char(v_start AT TIME ZONE 'UTC', 'YYYYMMDD_HH24MISS'),
                         v_start, v_end, 'active')
                 ON CONFLICT (chronotable_id, range_start) DO NOTHING;
                 v_partitions_created := v_partitions_created + 1;

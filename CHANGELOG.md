@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), version
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-06-09
+
+### Fixed
+
+- **Timezone-stable chunk names.** `_ensure_partitions` rendered `chunk_name` with `to_char(range_start, …)` in the **session timezone**, while `range_start` is an absolute `timestamptz`. Running the partition manager under different session timezones (e.g. a job in UTC vs a client in UTC+2) produced names that no longer matched `range_start`, so the partition manager hit `duplicate key value violates unique constraint "idx_chunk_metadata_chunk_name"` (the `ON CONFLICT (chronotable_id, range_start)` couldn't absorb a `chunk_name` collision). Names are now rendered from the instant in UTC (`v_start AT TIME ZONE 'UTC'`), keeping `chunk_name` 1:1 with `range_start` regardless of session timezone.
+
+Upgrade by reinstalling `dist/lakets.sql`. Any chunk rows created before this fix under a non-UTC session keep their old names; if the partition manager still collides, drop the stale rows for already-dropped chunks (their partitions are gone) and let it recreate them.
+
 ## [0.1.2] - 2026-06-08
 
 ### Fixed
